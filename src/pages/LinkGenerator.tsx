@@ -28,11 +28,13 @@ export default function LinkGenerator() {
   const [centerImage, setCenterImage] = useState("");
   const [centerImageFile, setCenterImageFile] = useState<File | null>(null);
   const [centerImagePreview, setCenterImagePreview] = useState("");
-  const [gridItems, setGridItems] = useState("");
   const [loading, setLoading] = useState(false);
   const [selectedPage, setSelectedPage] = useState("");
   const [htmlFile, setHtmlFile] = useState<File | null>(null);
   const [htmlFileName, setHtmlFileName] = useState("");
+  // Individual grid item titles
+  const [gridItemTitles, setGridItemTitles] = useState<string[]>(Array(16).fill(""));
+  
   // Fixed type declaration syntax
   const [gridItemImages, setGridItemImages] = useState<Record<number, { file: File | null; preview: string }>>(
     Array.from({ length: 16 }, (_, i) => i).reduce((acc, i) => {
@@ -83,6 +85,14 @@ export default function LinkGenerator() {
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  const handleGridItemTitleChange = (index: number, value: string) => {
+    setGridItemTitles(prev => {
+      const newTitles = [...prev];
+      newTitles[index] = value;
+      return newTitles;
+    });
   };
 
   const clearFileInput = (
@@ -141,36 +151,20 @@ export default function LinkGenerator() {
         .filter(Boolean)
         .map((title) => ({ title, link: "#" }));
 
-      // Parse grid items
-      let parsedGridItems = gridItems
-        .split("\n")
-        .map((line) => line.trim())
-        .filter(Boolean)
-        .map((line, index) => {
+      // Use individual grid item titles instead of parsing from a single string
+      let parsedGridItems = gridItemTitles
+        .map((title, index) => {
+          const actualTitle = title.trim() || `Item ${index + 1}`;
           // If we have an uploaded image for this item, use it
           const image = gridItemImages[index]?.preview || 
-            `https://source.unsplash.com/random/300x300/?${encodeURIComponent(line.toLowerCase())}`;
+            `https://source.unsplash.com/random/300x300/?${encodeURIComponent(actualTitle.toLowerCase())}`;
           
           return {
             id: `grid-${index + 1}`,
-            title: line,
+            title: actualTitle,
             image
           };
-        })
-        .slice(0, 16); // Limit to 16 items
-
-      // If less than 16 items, fill with placeholders
-      while (parsedGridItems.length < 16) {
-        const index = parsedGridItems.length;
-        const image = gridItemImages[index]?.preview || 
-          `https://source.unsplash.com/random/300x300/?book`;
-        
-        parsedGridItems.push({
-          id: `grid-${index + 1}`,
-          title: `Item ${index + 1}`,
-          image
         });
-      }
 
       // Use file previews if available, otherwise use URLs
       const sliderImage1Url = sliderImage1Preview || sliderImage1 || "https://source.unsplash.com/random/1200x400/?books";
@@ -192,19 +186,19 @@ export default function LinkGenerator() {
 
       const pageId = await createPage(pageData);
       
-      // Generate a link for the new page
+      // Automatically generate a link for the new page
       try {
         const link = await createLink(pageId);
         setGeneratedLink(link);
         toast({
           title: "Success",
-          description: "Page created and link generated successfully"
+          description: "Page and link created successfully"
         });
       } catch (linkError) {
         console.error("Error generating link:", linkError);
         toast({
           title: "Partial Success",
-          description: "Page created but link generation failed. Please create a link manually from the 'Use Existing Page' tab.",
+          description: "Page created but link generation failed. Please try again.",
           variant: "destructive"
         });
       }
@@ -347,81 +341,64 @@ export default function LinkGenerator() {
   );
 
   const GridItemsSection = () => {
-    // Split the grid items string into an array for rendering
-    const gridItemsArray = gridItems
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .slice(0, 16);
-    
-    // Pad with empty strings if less than 16 items
-    while (gridItemsArray.length < 16) {
-      gridItemsArray.push("");
-    }
-    
     return (
       <div className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="gridItems">Grid Items (one per line, max 16)</Label>
-          <Textarea
-            id="gridItems"
-            placeholder="Item 1&#10;Item 2&#10;Item 3&#10;..."
-            value={gridItems}
-            onChange={(e) => setGridItems(e.target.value)}
-            rows={6}
-          />
+          <Label>Grid Items</Label>
           <p className="text-sm text-muted-foreground">
-            Enter up to 16 items, one per line. Each will become a product in your grid with auto-generated images or your uploaded ones.
+            Enter titles for each item and optionally upload images. Each item will be displayed in your grid.
           </p>
         </div>
         
-        <div className="space-y-2">
-          <Label>Upload Images for Grid Items</Label>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-            {gridItemsArray.map((item, index) => (
-              <div key={index} className="border rounded-md p-3 space-y-2">
-                <p className="font-medium truncate">{item || `Item ${index + 1}`}</p>
-                
-                {gridItemImages[index]?.preview ? (
-                  <div className="relative">
-                    <img 
-                      src={gridItemImages[index].preview} 
-                      alt={`Item ${index + 1}`}
-                      className="w-full h-32 object-cover rounded-md"
-                    />
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="icon"
-                      className="absolute top-2 right-2 h-6 w-6"
-                      onClick={() => clearGridItemImage(index)}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-2">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => handleGridItemImageChange(e, index)}
-                      ref={(el) => (gridItemRefs.current[index] = el)}
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => gridItemRefs.current[index]?.click()}
-                      className="w-full text-xs h-32"
-                    >
-                      <Upload className="h-4 w-4 mr-2" />
-                      Upload Image
-                    </Button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+          {Array.from({ length: 16 }, (_, index) => (
+            <div key={index} className="border rounded-md p-3 space-y-2">
+              <Input
+                placeholder={`Item ${index + 1} title`}
+                value={gridItemTitles[index]}
+                onChange={(e) => handleGridItemTitleChange(index, e.target.value)}
+                className="w-full mb-2"
+              />
+              
+              {gridItemImages[index]?.preview ? (
+                <div className="relative">
+                  <img 
+                    src={gridItemImages[index].preview} 
+                    alt={gridItemTitles[index] || `Item ${index + 1}`}
+                    className="w-full h-32 object-cover rounded-md"
+                  />
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="icon"
+                    className="absolute top-2 right-2 h-6 w-6"
+                    onClick={() => clearGridItemImage(index)}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => handleGridItemImageChange(e, index)}
+                    ref={(el) => (gridItemRefs.current[index] = el)}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => gridItemRefs.current[index]?.click()}
+                    className="w-full text-xs h-24"
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Upload Image
+                  </Button>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       </div>
     );
