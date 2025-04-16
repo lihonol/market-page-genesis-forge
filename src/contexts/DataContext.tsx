@@ -104,18 +104,39 @@ const generateRandomString = (length: number) => {
 
 // Helper function to safely process page data
 const sanitizePageData = (pageData: Omit<LinkPage, "id" | "createdAt">) => {
-  // Ensure all required properties exist
-  const safeData = {
-    ...pageData,
-    title: pageData.title || "Untitled Page",
-    content: pageData.content || "",
-    menuItems: pageData.menuItems || [],
-    sliderImages: pageData.sliderImages || [],
-    centerImage: pageData.centerImage || "",
-    gridItems: pageData.gridItems || []
-  };
-  
-  return safeData;
+  try {
+    // Ensure all required properties exist
+    const safeData = {
+      ...pageData,
+      title: pageData.title || "Untitled Page",
+      content: pageData.content || "",
+      menuItems: pageData.menuItems || [],
+      sliderImages: Array.isArray(pageData.sliderImages) ? 
+        pageData.sliderImages.filter(url => typeof url === 'string') : 
+        [],
+      centerImage: typeof pageData.centerImage === 'string' ? pageData.centerImage : "",
+      gridItems: Array.isArray(pageData.gridItems) ? 
+        pageData.gridItems.map(item => ({
+          id: item.id || `item-${generateRandomString(6)}`,
+          title: item.title || "Untitled Item",
+          image: typeof item.image === 'string' ? item.image : ""
+        })) : 
+        []
+    };
+    
+    return safeData;
+  } catch (error) {
+    console.error("Error sanitizing page data:", error);
+    // Return minimal valid data if there's an error
+    return {
+      title: "Error Page",
+      content: "An error occurred while processing this page.",
+      menuItems: [],
+      sliderImages: [],
+      centerImage: "",
+      gridItems: []
+    };
+  }
 };
 
 export function DataProvider({ children }: { children: ReactNode }) {
@@ -204,19 +225,30 @@ export function DataProvider({ children }: { children: ReactNode }) {
       try {
         // Check if page exists
         if (!pages.some((page) => page.id === pageId)) {
+          const error = new Error("Page not found");
+          console.error("Error creating link: Page not found", pageId);
           toast({
             title: "Error Creating Link",
             description: "The selected page does not exist",
             variant: "destructive"
           });
-          reject(new Error("Page not found"));
+          reject(error);
           return;
         }
 
         const randomString = generateRandomString(8);
+        // Ensure we have a proper default link format
+        const baseLink = defaultLink && 
+                         typeof defaultLink === 'string' && 
+                         defaultLink.trim() !== "" ? 
+                           defaultLink : 
+                           "http://example.com";
+        
+        const fullLink = `${baseLink}/${randomString}`;
+
         const newLink: GeneratedLink = {
           id: `link_${Date.now()}_${generateRandomString(6)}`,
-          fullLink: `${defaultLink}/${randomString}`,
+          fullLink,
           pageId,
           createdAt: new Date().toISOString(),
           visits: 0

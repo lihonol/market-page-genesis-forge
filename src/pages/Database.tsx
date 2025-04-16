@@ -16,11 +16,20 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { format } from "date-fns";
+import { useToast } from "@/components/ui/use-toast";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export default function Database() {
   const [searchTerm, setSearchTerm] = useState("");
   const { pages, links, deletePage, deleteLink, exportData } = useData();
   const [activeTab, setActiveTab] = useState("links");
+  const { toast } = useToast();
+  
+  // Password protection for link deletion
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [itemToDelete, setItemToDelete] = useState<{id: string, type: "link" | "page"} | null>(null);
+  const DELETE_PASSWORD = "admin123"; // In a real app, this would be securely stored
 
   const filteredLinks = links.filter(
     (link) =>
@@ -39,16 +48,48 @@ export default function Database() {
     exportData(format);
   };
 
-  const handleDeletePage = (id: string) => {
-    if (window.confirm("Are you sure you want to delete this page?")) {
-      deletePage(id);
+  const confirmDelete = (id: string, type: "link" | "page") => {
+    setItemToDelete({ id, type });
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDelete = () => {
+    if (!itemToDelete) return;
+    
+    if (deletePassword !== DELETE_PASSWORD) {
+      toast({
+        title: "Incorrect Password",
+        description: "The password you entered is incorrect.",
+        variant: "destructive"
+      });
+      return;
     }
+
+    if (itemToDelete.type === "page") {
+      deletePage(itemToDelete.id);
+      toast({
+        title: "Page Deleted",
+        description: "The page has been successfully deleted."
+      });
+    } else {
+      deleteLink(itemToDelete.id);
+      toast({
+        title: "Link Deleted",
+        description: "The link has been successfully deleted."
+      });
+    }
+
+    setDeleteDialogOpen(false);
+    setDeletePassword("");
+    setItemToDelete(null);
+  };
+
+  const handleDeletePage = (id: string) => {
+    confirmDelete(id, "page");
   };
 
   const handleDeleteLink = (id: string) => {
-    if (window.confirm("Are you sure you want to delete this link?")) {
-      deleteLink(id);
-    }
+    confirmDelete(id, "link");
   };
 
   const handleDownloadPage = (id: string) => {
@@ -129,13 +170,17 @@ export default function Database() {
                         <TableHead className="whitespace-nowrap">Page ID</TableHead>
                         <TableHead className="whitespace-nowrap">Created At</TableHead>
                         <TableHead className="whitespace-nowrap">Visits</TableHead>
+                        <TableHead className="whitespace-nowrap">Last Visit</TableHead>
+                        <TableHead className="whitespace-nowrap">Status</TableHead>
+                        <TableHead className="whitespace-nowrap">Device</TableHead>
+                        <TableHead className="whitespace-nowrap">Platform</TableHead>
                         <TableHead className="whitespace-nowrap">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredLinks.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={8} className="text-center py-8">
+                          <TableCell colSpan={12} className="text-center py-8">
                             No links found
                           </TableCell>
                         </TableRow>
@@ -143,6 +188,13 @@ export default function Database() {
                         filteredLinks.map((link) => {
                           const page = pages.find(p => p.id === link.pageId);
                           const shortLink = link.fullLink.split('/').pop() || '';
+                          
+                          // Mock data for additional columns
+                          const lastVisit = link.visits > 0 ? new Date(Date.now() - Math.random() * 1000000000).toISOString() : null;
+                          const status = link.visits > 0 ? "Active" : "Inactive";
+                          const device = ["Mobile", "Desktop", "Tablet"][Math.floor(Math.random() * 3)];
+                          const platform = ["Windows", "iOS", "Android", "MacOS", "Linux"][Math.floor(Math.random() * 5)];
+                          
                           return (
                             <TableRow key={link.id}>
                               <TableCell className="whitespace-nowrap">{link.id}</TableCell>
@@ -158,6 +210,16 @@ export default function Database() {
                                 {format(new Date(link.createdAt), "PPP")}
                               </TableCell>
                               <TableCell className="whitespace-nowrap">{link.visits}</TableCell>
+                              <TableCell className="whitespace-nowrap">
+                                {lastVisit ? format(new Date(lastVisit), "PPP") : "Never"}
+                              </TableCell>
+                              <TableCell className="whitespace-nowrap">
+                                <span className={`px-2 py-1 rounded-full text-xs ${status === "Active" ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}`}>
+                                  {status}
+                                </span>
+                              </TableCell>
+                              <TableCell className="whitespace-nowrap">{device}</TableCell>
+                              <TableCell className="whitespace-nowrap">{platform}</TableCell>
                               <TableCell className="whitespace-nowrap">
                                 <div className="flex gap-2">
                                   <Button 
@@ -262,6 +324,37 @@ export default function Database() {
           </CardContent>
         </Card>
       </div>
+      
+      {/* Password confirmation dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Password Required</DialogTitle>
+            <DialogDescription>
+              Please enter the admin password to delete this {itemToDelete?.type}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Input
+              type="password"
+              placeholder="Enter password"
+              value={deletePassword}
+              onChange={(e) => setDeletePassword(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setDeleteDialogOpen(false);
+              setDeletePassword("");
+            }}>
+              Cancel
+            </Button>
+            <Button onClick={handleDelete} variant="destructive">
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

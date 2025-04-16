@@ -11,6 +11,7 @@ import { useData, LinkPage } from "@/contexts/DataContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { Plus, Link2, FileUp, RefreshCw, Copy, X, Upload } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export default function LinkGenerator() {
   const [tab, setTab] = useState("create");
@@ -30,11 +31,21 @@ export default function LinkGenerator() {
   const [gridItems, setGridItems] = useState("");
   const [loading, setLoading] = useState(false);
   const [selectedPage, setSelectedPage] = useState("");
+  const [htmlFile, setHtmlFile] = useState<File | null>(null);
+  const [htmlFileName, setHtmlFileName] = useState("");
+  const [gridItemImages, setGridItemImages] = useState<{[key: number]: {file: File | null, preview: string}>>(
+    Array.from({ length: 16 }, (_, i) => i).reduce((acc, i) => {
+      acc[i] = { file: null, preview: "" };
+      return acc;
+    }, {} as {[key: number]: {file: File | null, preview: string}})
+  );
 
   // Refs for file inputs
   const sliderImage1Ref = useRef<HTMLInputElement>(null);
   const sliderImage2Ref = useRef<HTMLInputElement>(null);
   const centerImageRef = useRef<HTMLInputElement>(null);
+  const htmlFileRef = useRef<HTMLInputElement>(null);
+  const gridItemRefs = useRef<Array<HTMLInputElement | null>>(Array(16).fill(null));
   
   const { createPage, createLink, pages } = useData();
   const { defaultLink } = useSettings();
@@ -54,6 +65,25 @@ export default function LinkGenerator() {
     }
   };
 
+  const handleGridItemImageChange = (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      
+      // Create preview URL
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setGridItemImages(prev => ({
+          ...prev,
+          [index]: {
+            file,
+            preview: reader.result as string
+          }
+        }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const clearFileInput = (
     ref: React.RefObject<HTMLInputElement>, 
     setter: React.Dispatch<React.SetStateAction<File | null>>,
@@ -64,6 +94,30 @@ export default function LinkGenerator() {
     setter(null);
     previewSetter("");
     urlSetter("");
+  };
+
+  const clearGridItemImage = (index: number) => {
+    if (gridItemRefs.current[index]) {
+      if (gridItemRefs.current[index]) {
+        (gridItemRefs.current[index] as HTMLInputElement).value = '';
+      }
+    }
+    
+    setGridItemImages(prev => ({
+      ...prev,
+      [index]: {
+        file: null,
+        preview: ""
+      }
+    }));
+  };
+
+  const handleHtmlFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setHtmlFile(file);
+      setHtmlFileName(file.name);
+    }
   };
 
   const handleCreatePage = async () => {
@@ -87,23 +141,33 @@ export default function LinkGenerator() {
         .map((title) => ({ title, link: "#" }));
 
       // Parse grid items
-      const parsedGridItems = gridItems
+      let parsedGridItems = gridItems
         .split("\n")
         .map((line) => line.trim())
         .filter(Boolean)
-        .map((line, index) => ({
-          id: `grid-${index + 1}`,
-          title: line,
-          image: `https://source.unsplash.com/random/300x300/?${encodeURIComponent(line.toLowerCase())}`
-        }))
+        .map((line, index) => {
+          // If we have an uploaded image for this item, use it
+          const image = gridItemImages[index]?.preview || 
+            `https://source.unsplash.com/random/300x300/?${encodeURIComponent(line.toLowerCase())}`;
+          
+          return {
+            id: `grid-${index + 1}`,
+            title: line,
+            image
+          };
+        })
         .slice(0, 16); // Limit to 16 items
 
       // If less than 16 items, fill with placeholders
       while (parsedGridItems.length < 16) {
+        const index = parsedGridItems.length;
+        const image = gridItemImages[index]?.preview || 
+          `https://source.unsplash.com/random/300x300/?book`;
+        
         parsedGridItems.push({
-          id: `grid-${parsedGridItems.length + 1}`,
-          title: `Item ${parsedGridItems.length + 1}`,
-          image: `https://source.unsplash.com/random/300x300/?book`
+          id: `grid-${index + 1}`,
+          title: `Item ${index + 1}`,
+          image
         });
       }
 
@@ -128,13 +192,21 @@ export default function LinkGenerator() {
       const pageId = await createPage(pageData);
       
       // Generate a link for the new page
-      const link = await createLink(pageId);
-      
-      setGeneratedLink(link);
-      toast({
-        title: "Success",
-        description: "Page created and link generated successfully"
-      });
+      try {
+        const link = await createLink(pageId);
+        setGeneratedLink(link);
+        toast({
+          title: "Success",
+          description: "Page created and link generated successfully"
+        });
+      } catch (linkError) {
+        console.error("Error generating link:", linkError);
+        toast({
+          title: "Partial Success",
+          description: "Page created but link generation failed. Please create a link manually from the 'Use Existing Page' tab.",
+          variant: "destructive"
+        });
+      }
     } catch (error) {
       console.error("Error creating page:", error);
       toast({
@@ -183,6 +255,27 @@ export default function LinkGenerator() {
       toast({
         title: "Copied",
         description: "Link copied to clipboard"
+      });
+    }
+  };
+
+  const handleHtmlUpload = () => {
+    if (htmlFile) {
+      // In a real app, this would upload the HTML file
+      toast({
+        title: "HTML File Uploaded",
+        description: `File "${htmlFileName}" would be uploaded in a real application`
+      });
+      setHtmlFile(null);
+      setHtmlFileName("");
+      if (htmlFileRef.current) {
+        htmlFileRef.current.value = '';
+      }
+    } else {
+      toast({
+        title: "No File Selected",
+        description: "Please select an HTML file to upload",
+        variant: "destructive"
       });
     }
   };
@@ -251,6 +344,87 @@ export default function LinkGenerator() {
       </div>
     </div>
   );
+
+  const GridItemsSection = () => {
+    // Split the grid items string into an array for rendering
+    const gridItemsArray = gridItems
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .slice(0, 16);
+    
+    // Pad with empty strings if less than 16 items
+    while (gridItemsArray.length < 16) {
+      gridItemsArray.push("");
+    }
+    
+    return (
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="gridItems">Grid Items (one per line, max 16)</Label>
+          <Textarea
+            id="gridItems"
+            placeholder="Item 1&#10;Item 2&#10;Item 3&#10;..."
+            value={gridItems}
+            onChange={(e) => setGridItems(e.target.value)}
+            rows={6}
+          />
+          <p className="text-sm text-muted-foreground">
+            Enter up to 16 items, one per line. Each will become a product in your grid with auto-generated images or your uploaded ones.
+          </p>
+        </div>
+        
+        <div className="space-y-2">
+          <Label>Upload Images for Grid Items</Label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+            {gridItemsArray.map((item, index) => (
+              <div key={index} className="border rounded-md p-3 space-y-2">
+                <p className="font-medium truncate">{item || `Item ${index + 1}`}</p>
+                
+                {gridItemImages[index]?.preview ? (
+                  <div className="relative">
+                    <img 
+                      src={gridItemImages[index].preview} 
+                      alt={`Item ${index + 1}`}
+                      className="w-full h-32 object-cover rounded-md"
+                    />
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="icon"
+                      className="absolute top-2 right-2 h-6 w-6"
+                      onClick={() => clearGridItemImage(index)}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => handleGridItemImageChange(e, index)}
+                      ref={(el) => (gridItemRefs.current[index] = el)}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => gridItemRefs.current[index]?.click()}
+                      className="w-full text-xs h-32"
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Upload Image
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <DashboardLayout title="Link Generator">
@@ -339,19 +513,7 @@ export default function LinkGenerator() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="gridItems">Grid Items (one per line, max 16)</Label>
-                  <Textarea
-                    id="gridItems"
-                    placeholder="Item 1&#10;Item 2&#10;Item 3&#10;..."
-                    value={gridItems}
-                    onChange={(e) => setGridItems(e.target.value)}
-                    rows={6}
-                  />
-                  <p className="text-sm text-muted-foreground">
-                    Enter up to 16 items, one per line. Each will become a product in your grid with auto-generated images.
-                  </p>
-                </div>
+                <GridItemsSection />
 
                 <Button 
                   onClick={handleCreatePage} 
@@ -444,20 +606,45 @@ export default function LinkGenerator() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center justify-center border-2 border-dashed rounded-lg p-12">
+            <div 
+              className="flex items-center justify-center border-2 border-dashed rounded-lg p-12 cursor-pointer"
+              onClick={() => htmlFileRef.current?.click()}
+            >
               <div className="text-center space-y-4">
-                <FileUp className="mx-auto h-12 w-12 text-muted-foreground" />
-                <div>
-                  <p className="text-sm text-muted-foreground">
-                    Drag and drop your HTML file here, or click to browse
-                  </p>
-                </div>
-                <Button variant="outline">Select File</Button>
+                <input
+                  type="file"
+                  className="hidden"
+                  ref={htmlFileRef}
+                  onChange={handleHtmlFileChange}
+                  accept=".html,.htm"
+                />
+                {htmlFileName ? (
+                  <>
+                    <FileUp className="mx-auto h-12 w-12 text-green-500" />
+                    <div>
+                      <p className="text-sm font-medium">{htmlFileName}</p>
+                      <p className="text-xs text-muted-foreground">Click to change file</p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <FileUp className="mx-auto h-12 w-12 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm text-muted-foreground">
+                        Drag and drop your HTML file here, or click to browse
+                      </p>
+                    </div>
+                  </>
+                )}
+                <Button variant="outline" onClick={(e) => {
+                  e.stopPropagation();
+                  htmlFileRef.current?.click();
+                }}>Select File</Button>
               </div>
             </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              * In a real implementation, this would upload your HTML file to the server
-            </p>
+            <div className="flex justify-end mt-4">
+              <Button onClick={handleHtmlUpload} disabled={!htmlFile}>Upload HTML File</Button>
+            </div>
           </CardContent>
           <CardFooter>
             <p className="text-sm text-muted-foreground">
