@@ -33,11 +33,12 @@ export default function LinkGenerator() {
   const [selectedPage, setSelectedPage] = useState("");
   const [htmlFile, setHtmlFile] = useState<File | null>(null);
   const [htmlFileName, setHtmlFileName] = useState("");
-  const [gridItemImages, setGridItemImages] = useState<{[key: number]: {file: File | null, preview: string}>>(
+  // Fixed type declaration syntax
+  const [gridItemImages, setGridItemImages] = useState<Record<number, { file: File | null; preview: string }>>(
     Array.from({ length: 16 }, (_, i) => i).reduce((acc, i) => {
       acc[i] = { file: null, preview: "" };
       return acc;
-    }, {} as {[key: number]: {file: File | null, preview: string}})
+    }, {} as Record<number, { file: File | null; preview: string }>)
   );
 
   // Refs for file inputs
