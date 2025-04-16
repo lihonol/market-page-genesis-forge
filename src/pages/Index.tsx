@@ -8,11 +8,16 @@ const Index = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (isAuthenticated) {
-      navigate("/dashboard");
-    } else {
-      navigate("/login");
-    }
+    // Add a small delay to ensure context is fully initialized
+    const timer = setTimeout(() => {
+      if (isAuthenticated) {
+        navigate("/dashboard");
+      } else {
+        navigate("/login");
+      }
+    }, 100);
+    
+    return () => clearTimeout(timer);
   }, [isAuthenticated, navigate]);
 
   return (
@@ -20,6 +25,9 @@ const Index = () => {
       <div className="text-center">
         <h1 className="text-3xl font-bold">Book Market</h1>
         <p className="mt-4">Redirecting...</p>
+        <div className="mt-4 flex justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
       </div>
     </div>
   );

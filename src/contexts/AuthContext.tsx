@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect } from "react";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from "@/hooks/use-toast";
 
 interface User {
   id: string;
@@ -27,7 +27,6 @@ const MOCK_USERS = [
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
-  const { toast } = useToast();
   
   useEffect(() => {
     // Check for saved authentication
@@ -41,6 +40,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
+  const showToast = (title: string, description: string, variant?: "default" | "destructive") => {
+    toast({
+      title,
+      description,
+      variant,
+    });
+  };
+
   const login = async (username: string, password: string) => {
     return new Promise<void>((resolve, reject) => {
       // Simulate API call
@@ -53,17 +60,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           const { password, ...userWithoutPassword } = foundUser;
           setUser(userWithoutPassword);
           localStorage.setItem("bookmarket_user", JSON.stringify(userWithoutPassword));
-          toast({
-            title: "Login successful",
-            description: `Welcome back, ${username}!`,
-          });
+          showToast("Login successful", `Welcome back, ${username}!`);
           resolve();
         } else {
-          toast({
-            title: "Login failed",
-            description: "Invalid username or password",
-            variant: "destructive",
-          });
+          showToast("Login failed", "Invalid username or password", "destructive");
           reject(new Error("Invalid credentials"));
         }
       }, 500);
@@ -73,10 +73,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logout = () => {
     setUser(null);
     localStorage.removeItem("bookmarket_user");
-    toast({
-      title: "Logged out",
-      description: "You have been successfully logged out",
-    });
+    showToast("Logged out", "You have been successfully logged out");
   };
 
   const createUser = async (username: string, password: string, role: "admin" | "user") => {
@@ -84,11 +81,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return new Promise<void>((resolve, reject) => {
       // Check if username already exists
       if (MOCK_USERS.some((u) => u.username === username)) {
-        toast({
-          title: "User creation failed",
-          description: "Username already exists",
-          variant: "destructive",
-        });
+        showToast("User creation failed", "Username already exists", "destructive");
         reject(new Error("Username already exists"));
         return;
       }
@@ -102,10 +95,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       };
       MOCK_USERS.push(newUser);
 
-      toast({
-        title: "User created",
-        description: `New ${role} account created for ${username}`,
-      });
+      showToast("User created", `New ${role} account created for ${username}`);
       resolve();
     });
   };
@@ -120,11 +110,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       const userIndex = MOCK_USERS.findIndex((u) => u.id === user.id);
       if (userIndex === -1 || MOCK_USERS[userIndex].password !== oldPassword) {
-        toast({
-          title: "Password change failed",
-          description: "Current password is incorrect",
-          variant: "destructive",
-        });
+        showToast("Password change failed", "Current password is incorrect", "destructive");
         reject(new Error("Current password is incorrect"));
         return;
       }
@@ -132,10 +118,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Update password (in a real app, this would update a database)
       MOCK_USERS[userIndex].password = newPassword;
 
-      toast({
-        title: "Password changed",
-        description: "Your password has been updated successfully",
-      });
+      showToast("Password changed", "Your password has been updated successfully");
       resolve();
     });
   };
