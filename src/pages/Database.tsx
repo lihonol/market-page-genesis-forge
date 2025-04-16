@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -229,7 +228,7 @@ export default function Database() {
                                   onClick={() => handleDownloadPage(page.id)}
                                   title="Download HTML"
                                 >
-                                  <FileDownload className="h-4 w-4" />
+                                  <FileDown className="h-4 w-4" />
                                 </Button>
                                 <Button 
                                   variant="ghost" 
