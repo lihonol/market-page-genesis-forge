@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useData } from "@/contexts/DataContext";
-import { Download, FileDown, Trash2, Eye, Search, FileDownload } from "lucide-react";
+import { Download, FileDown, Trash2, Eye, Search } from "lucide-react";
 import {
   Table,
   TableBody,
