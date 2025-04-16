@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -122,7 +123,9 @@ export default function Database() {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="whitespace-nowrap">ID</TableHead>
+                        <TableHead className="whitespace-nowrap">Short Link</TableHead>
                         <TableHead className="whitespace-nowrap">Full Link</TableHead>
+                        <TableHead className="whitespace-nowrap">Page Title</TableHead>
                         <TableHead className="whitespace-nowrap">Page ID</TableHead>
                         <TableHead className="whitespace-nowrap">Created At</TableHead>
                         <TableHead className="whitespace-nowrap">Visits</TableHead>
@@ -132,44 +135,52 @@ export default function Database() {
                     <TableBody>
                       {filteredLinks.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={6} className="text-center py-8">
+                          <TableCell colSpan={8} className="text-center py-8">
                             No links found
                           </TableCell>
                         </TableRow>
                       ) : (
-                        filteredLinks.map((link) => (
-                          <TableRow key={link.id}>
-                            <TableCell className="whitespace-nowrap">{link.id}</TableCell>
-                            <TableCell className="whitespace-nowrap max-w-[200px] truncate">
-                              {link.fullLink}
-                            </TableCell>
-                            <TableCell className="whitespace-nowrap">{link.pageId}</TableCell>
-                            <TableCell className="whitespace-nowrap">
-                              {format(new Date(link.createdAt), "PPP")}
-                            </TableCell>
-                            <TableCell className="whitespace-nowrap">{link.visits}</TableCell>
-                            <TableCell className="whitespace-nowrap">
-                              <div className="flex gap-2">
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm"
-                                  onClick={() => window.open(`/preview/${link.pageId}`, '_blank')}
-                                  title="View"
-                                >
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm" 
-                                  onClick={() => handleDeleteLink(link.id)}
-                                  title="Delete"
-                                >
-                                  <Trash2 className="h-4 w-4 text-destructive" />
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))
+                        filteredLinks.map((link) => {
+                          const page = pages.find(p => p.id === link.pageId);
+                          const shortLink = link.fullLink.split('/').pop() || '';
+                          return (
+                            <TableRow key={link.id}>
+                              <TableCell className="whitespace-nowrap">{link.id}</TableCell>
+                              <TableCell className="whitespace-nowrap">{shortLink}</TableCell>
+                              <TableCell className="whitespace-nowrap max-w-[200px] truncate">
+                                {link.fullLink}
+                              </TableCell>
+                              <TableCell className="whitespace-nowrap max-w-[150px] truncate">
+                                {page?.title || 'No title'}
+                              </TableCell>
+                              <TableCell className="whitespace-nowrap">{link.pageId}</TableCell>
+                              <TableCell className="whitespace-nowrap">
+                                {format(new Date(link.createdAt), "PPP")}
+                              </TableCell>
+                              <TableCell className="whitespace-nowrap">{link.visits}</TableCell>
+                              <TableCell className="whitespace-nowrap">
+                                <div className="flex gap-2">
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm"
+                                    onClick={() => window.open(`/preview/${link.pageId}`, '_blank')}
+                                    title="View"
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    onClick={() => handleDeleteLink(link.id)}
+                                    title="Delete"
+                                  >
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
                       )}
                     </TableBody>
                   </Table>

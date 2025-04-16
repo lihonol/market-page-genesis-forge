@@ -102,6 +102,22 @@ const generateRandomString = (length: number) => {
   return result;
 };
 
+// Helper function to safely process page data
+const sanitizePageData = (pageData: Omit<LinkPage, "id" | "createdAt">) => {
+  // Ensure all required properties exist
+  const safeData = {
+    ...pageData,
+    title: pageData.title || "Untitled Page",
+    content: pageData.content || "",
+    menuItems: pageData.menuItems || [],
+    sliderImages: pageData.sliderImages || [],
+    centerImage: pageData.centerImage || "",
+    gridItems: pageData.gridItems || []
+  };
+  
+  return safeData;
+};
+
 export function DataProvider({ children }: { children: ReactNode }) {
   const [pages, setPages] = useState<LinkPage[]>([]);
   const [links, setLinks] = useState<GeneratedLink[]>([]);
@@ -136,62 +152,93 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   // Save data to localStorage whenever it changes
   useEffect(() => {
-    localStorage.setItem("bookmarket_pages", JSON.stringify(pages));
+    try {
+      localStorage.setItem("bookmarket_pages", JSON.stringify(pages));
+    } catch (e) {
+      console.error("Error saving pages to localStorage:", e);
+    }
   }, [pages]);
 
   useEffect(() => {
-    localStorage.setItem("bookmarket_links", JSON.stringify(links));
+    try {
+      localStorage.setItem("bookmarket_links", JSON.stringify(links));
+    } catch (e) {
+      console.error("Error saving links to localStorage:", e);
+    }
   }, [links]);
 
   const createPage = async (pageData: Omit<LinkPage, "id" | "createdAt">) => {
-    return new Promise<string>((resolve) => {
-      const newPage: LinkPage = {
-        ...pageData,
-        id: `page_${Date.now()}_${generateRandomString(6)}`,
-        createdAt: new Date().toISOString()
-      };
+    return new Promise<string>((resolve, reject) => {
+      try {
+        // Sanitize the page data to prevent errors
+        const safePageData = sanitizePageData(pageData);
+        
+        const newPage: LinkPage = {
+          ...safePageData,
+          id: `page_${Date.now()}_${generateRandomString(6)}`,
+          createdAt: new Date().toISOString()
+        };
 
-      setPages((prevPages) => [...prevPages, newPage]);
+        setPages((prevPages) => [...prevPages, newPage]);
 
-      toast({
-        title: "Page Created",
-        description: `"${newPage.title}" has been created successfully`
-      });
+        toast({
+          title: "Page Created",
+          description: `"${newPage.title}" has been created successfully`
+        });
 
-      resolve(newPage.id);
+        resolve(newPage.id);
+      } catch (error) {
+        console.error("Error creating page:", error);
+        toast({
+          title: "Error Creating Page",
+          description: "An unexpected error occurred while creating the page",
+          variant: "destructive"
+        });
+        reject(error);
+      }
     });
   };
 
   const createLink = async (pageId: string) => {
     return new Promise<string>((resolve, reject) => {
-      // Check if page exists
-      if (!pages.some((page) => page.id === pageId)) {
+      try {
+        // Check if page exists
+        if (!pages.some((page) => page.id === pageId)) {
+          toast({
+            title: "Error Creating Link",
+            description: "The selected page does not exist",
+            variant: "destructive"
+          });
+          reject(new Error("Page not found"));
+          return;
+        }
+
+        const randomString = generateRandomString(8);
+        const newLink: GeneratedLink = {
+          id: `link_${Date.now()}_${generateRandomString(6)}`,
+          fullLink: `${defaultLink}/${randomString}`,
+          pageId,
+          createdAt: new Date().toISOString(),
+          visits: 0
+        };
+
+        setLinks((prevLinks) => [...prevLinks, newLink]);
+
+        toast({
+          title: "Link Generated",
+          description: `New link created: ${newLink.fullLink}`
+        });
+
+        resolve(newLink.fullLink);
+      } catch (error) {
+        console.error("Error creating link:", error);
         toast({
           title: "Error Creating Link",
-          description: "The selected page does not exist",
+          description: "An unexpected error occurred while generating the link",
           variant: "destructive"
         });
-        reject(new Error("Page not found"));
-        return;
+        reject(error);
       }
-
-      const randomString = generateRandomString(8);
-      const newLink: GeneratedLink = {
-        id: `link_${Date.now()}_${generateRandomString(6)}`,
-        fullLink: `${defaultLink}/${randomString}`,
-        pageId,
-        createdAt: new Date().toISOString(),
-        visits: 0
-      };
-
-      setLinks((prevLinks) => [...prevLinks, newLink]);
-
-      toast({
-        title: "Link Generated",
-        description: `New link created: ${newLink.fullLink}`
-      });
-
-      resolve(newLink.fullLink);
     });
   };
 
