@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useData } from "@/contexts/DataContext";
-import { Download, FileDown, Trash2, Eye, Search } from "lucide-react";
+import { Download, FileDown, Trash2, Eye, Search, FileDownload } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -51,27 +51,37 @@ export default function Database() {
     }
   };
 
-  // Generate columns for the links table
-  const linkColumns = [
-    "ID",
-    "Full Link",
-    "Page ID",
-    "Created At",
-    "Visits",
-    "Actions",
-    ...Array(14).fill("").map((_, i) => `Column ${i + 7}`)
-  ];
-
-  // Generate columns for the pages table
-  const pageColumns = [
-    "ID",
-    "Title",
-    "Content",
-    "Menu Items",
-    "Created At",
-    "Actions",
-    ...Array(14).fill("").map((_, i) => `Column ${i + 7}`)
-  ];
+  const handleDownloadPage = (id: string) => {
+    // In a real app, this would trigger a download of the HTML page
+    const page = pages.find(p => p.id === id);
+    if (!page) return;
+    
+    // Create a simple HTML page for demonstration purposes
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${page.title}</title>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body>
+          <h1>${page.title}</h1>
+          <div>${page.content}</div>
+        </body>
+      </html>
+    `;
+    
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `page-${id}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <DashboardLayout title="Database">
@@ -112,17 +122,18 @@ export default function Database() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        {linkColumns.map((column) => (
-                          <TableHead key={column} className="whitespace-nowrap">
-                            {column}
-                          </TableHead>
-                        ))}
+                        <TableHead className="whitespace-nowrap">ID</TableHead>
+                        <TableHead className="whitespace-nowrap">Full Link</TableHead>
+                        <TableHead className="whitespace-nowrap">Page ID</TableHead>
+                        <TableHead className="whitespace-nowrap">Created At</TableHead>
+                        <TableHead className="whitespace-nowrap">Visits</TableHead>
+                        <TableHead className="whitespace-nowrap">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredLinks.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={linkColumns.length} className="text-center py-8">
+                          <TableCell colSpan={6} className="text-center py-8">
                             No links found
                           </TableCell>
                         </TableRow>
@@ -144,6 +155,7 @@ export default function Database() {
                                   variant="ghost" 
                                   size="sm"
                                   onClick={() => window.open(`/preview/${link.pageId}`, '_blank')}
+                                  title="View"
                                 >
                                   <Eye className="h-4 w-4" />
                                 </Button>
@@ -151,16 +163,12 @@ export default function Database() {
                                   variant="ghost" 
                                   size="sm" 
                                   onClick={() => handleDeleteLink(link.id)}
+                                  title="Delete"
                                 >
                                   <Trash2 className="h-4 w-4 text-destructive" />
                                 </Button>
                               </div>
                             </TableCell>
-                            {Array(14).fill("").map((_, i) => (
-                              <TableCell key={i} className="whitespace-nowrap text-muted-foreground">
-                                -
-                              </TableCell>
-                            ))}
                           </TableRow>
                         ))
                       )}
@@ -174,17 +182,18 @@ export default function Database() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        {pageColumns.map((column) => (
-                          <TableHead key={column} className="whitespace-nowrap">
-                            {column}
-                          </TableHead>
-                        ))}
+                        <TableHead className="whitespace-nowrap">ID</TableHead>
+                        <TableHead className="whitespace-nowrap">Title</TableHead>
+                        <TableHead className="whitespace-nowrap">Content</TableHead>
+                        <TableHead className="whitespace-nowrap">Menu Items</TableHead>
+                        <TableHead className="whitespace-nowrap">Created At</TableHead>
+                        <TableHead className="whitespace-nowrap">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredPages.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={pageColumns.length} className="text-center py-8">
+                          <TableCell colSpan={6} className="text-center py-8">
                             No pages found
                           </TableCell>
                         </TableRow>
@@ -210,23 +219,28 @@ export default function Database() {
                                   variant="ghost" 
                                   size="sm"
                                   onClick={() => window.open(`/preview/${page.id}`, '_blank')}
+                                  title="View"
                                 >
                                   <Eye className="h-4 w-4" />
                                 </Button>
                                 <Button 
                                   variant="ghost" 
                                   size="sm" 
+                                  onClick={() => handleDownloadPage(page.id)}
+                                  title="Download HTML"
+                                >
+                                  <FileDownload className="h-4 w-4" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
                                   onClick={() => handleDeletePage(page.id)}
+                                  title="Delete"
                                 >
                                   <Trash2 className="h-4 w-4 text-destructive" />
                                 </Button>
                               </div>
                             </TableCell>
-                            {Array(14).fill("").map((_, i) => (
-                              <TableCell key={i} className="whitespace-nowrap text-muted-foreground">
-                                -
-                              </TableCell>
-                            ))}
                           </TableRow>
                         ))
                       )}

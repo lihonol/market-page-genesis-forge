@@ -147,14 +147,21 @@ export function Sidebar() {
               <UserPlus className="h-4 w-4 mr-2" />
               <span>Create New User</span>
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout}>
-              <LogOut className="h-4 w-4 mr-2" />
-              <span>Log Out</span>
-            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </nav>
+
+      {/* Standalone Logout Button */}
+      <div className="p-2 border-t">
+        <Button
+          variant="ghost"
+          className={cn("justify-start w-full", !isOpen && "justify-center")}
+          onClick={handleLogout}
+        >
+          <LogOut className="h-5 w-5 mr-2 shrink-0" />
+          {isOpen && <span>Log Out</span>}
+        </Button>
+      </div>
     </div>
   );
 }
