@@ -17,6 +17,7 @@ import {
 import { format } from "date-fns";
 import { useToast } from "@/components/ui/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useFolderTextFiles } from "@/hooks/useFolderTextFiles";
 
 export default function Database() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -37,6 +38,7 @@ export default function Database() {
     { fileName: string; rows: { label: string; value: string }[] }[]
   >([]);
   const [tabKey, setTabKey] = useState("links");
+  const { files: folderFiles, loading: loadingFolderFiles } = useFolderTextFiles();
 
   // تابع خواندن و پارس کردن فایل متنی
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -190,6 +192,22 @@ export default function Database() {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
+
+  // عبارت جدید برای ترکیب چند رکوردی از public/datafiles
+  const allTextFilesRecords = [
+    ...multiFileDataRows,
+    ...folderFiles,
+  ];
+
+  // جستجو بین موارد txtهای اتوماتیک
+  const filteredAllTextFilesRecords = allTextFilesRecords.filter((rec) =>
+    rec.fileName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    rec.rows.some(
+      row =>
+        row.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        row.value.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+  );
 
   return (
     <DashboardLayout title="Database">
@@ -448,11 +466,12 @@ export default function Database() {
               </TabsContent>
 
               <TabsContent value="textfiles" className="mt-4">
-                {multiFileDataRows.length === 0 ? (
+                {loadingFolderFiles && <div className="p-8 text-center text-muted-foreground">Loading folder files...</div>}
+                {filteredAllTextFilesRecords.length === 0 && !loadingFolderFiles ? (
                   <div className="p-8 text-center text-muted-foreground">No text files uploaded</div>
                 ) : (
                   <div>
-                    {multiFileDataRows.map((fileRec, fileIdx) => (
+                    {filteredAllTextFilesRecords.map((fileRec, fileIdx) => (
                       <Card key={fileRec.fileName} className="mb-6 border">
                         <CardHeader>
                           <CardTitle className="text-base">{fileRec.fileName}</CardTitle>
