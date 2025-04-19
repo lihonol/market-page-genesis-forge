@@ -100,10 +100,59 @@ export default function Database() {
     });
   };
 
-  const filteredLinks = links.filter(
+  // ساخت رکوردهای شبیه‌سازی‌شده برای اضافه‌کردن فایل‌های txt به جدول Links
+  const folderTextFileToLinkRecord = (file: { fileName: string, rows: { label: string, value: string }[] }) => {
+    // برچسب‌ها را در یک آبجکت جمع کنیم برای دسترسی راحت‌تر
+    const rowObj: Record<string, string> = {};
+    file.rows.forEach(row => {
+      rowObj[row.label.toLowerCase()] = row.value;
+    });
+
+    // شبیه‌سازی فیلدها
+    return {
+      id: file.fileName,                  // آیدی: نام فایل
+      fullLink: rowObj["referurl"] || "N/A",      // فیلد fullLink را از کلید referurl یا N/A بگیر
+      visits: Number(rowObj["visits"]) || 0,      // در صورت وجود مقدار visits
+      createdAt: rowObj["devicelocaltime"] || new Date().toISOString(),
+      pageId: "-",
+      pageTitle: "-",
+      status: rowObj["ischarging"] || "-",
+      device: rowObj["platform"] || "-",
+      platform: rowObj["useragent"] || "-",
+      rawRows: file.rows,                  // تمام خطوط برای مشاهده جزئیات
+      isTxtRecord: true,                   // شناساگر رکورد از فایل متنی
+    };
+  };
+
+  // رکوردهای شبیه‌سازی شده از فایل‌های پوشه و رکوردهای لینک واقعی
+  const folderFileLinkRecords = folderFiles.map(folderTextFileToLinkRecord);
+
+  // رکوردهای جاری لینک‌ها با رکوردهای txt ترکیب شود
+  const combinedLinks = [
+    ...links.map(link => ({
+      ...link,
+      rawRows: null,
+      isTxtRecord: false,
+      pageTitle: (pages.find(p => p.id === link.pageId)?.title) || "-",
+      device: "N/A",         // برای لینک‌های واقعی قابل محاسبه نیست، می‌توانید if needed این فیلدها را توسعه بدهید
+      platform: "N/A",
+      status: link.visits > 0 ? "Active" : "Inactive"
+    })),
+    ...folderFileLinkRecords,
+  ];
+
+  const filteredLinks = combinedLinks.filter(
     (link) =>
-      link.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      link.fullLink.toLowerCase().includes(searchTerm.toLowerCase())
+      (link.id && link.id.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (link.fullLink && link.fullLink.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (link.pageTitle && link.pageTitle.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (link.platform && link.platform.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (link.device && link.device.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (link?.rawRows && (link.rawRows as any[]).some(
+        (row) =>
+          row.label?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          row.value?.toLowerCase().includes(searchTerm.toLowerCase())
+      ))
   );
 
   const filteredPages = pages.filter(
@@ -314,7 +363,6 @@ export default function Database() {
                         <TableHead className="whitespace-nowrap">Page ID</TableHead>
                         <TableHead className="whitespace-nowrap">Created At</TableHead>
                         <TableHead className="whitespace-nowrap">Visits</TableHead>
-                        <TableHead className="whitespace-nowrap">Last Visit</TableHead>
                         <TableHead className="whitespace-nowrap">Status</TableHead>
                         <TableHead className="whitespace-nowrap">Device</TableHead>
                         <TableHead className="whitespace-nowrap">Platform</TableHead>
@@ -324,74 +372,101 @@ export default function Database() {
                     <TableBody>
                       {filteredLinks.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={12} className="text-center py-8">
+                          <TableCell colSpan={11} className="text-center py-8">
                             No links found
                           </TableCell>
                         </TableRow>
                       ) : (
-                        filteredLinks.map((link) => {
-                          const page = pages.find(p => p.id === link.pageId);
-                          const shortLink = link.fullLink.split('/').pop() || '';
-                          
-                          // Mock data for additional columns
-                          const lastVisit = link.visits > 0 ? new Date(Date.now() - Math.random() * 1000000000).toISOString() : null;
-                          const status = link.visits > 0 ? "Active" : "Inactive";
-                          const device = ["Mobile", "Desktop", "Tablet"][Math.floor(Math.random() * 3)];
-                          const platform = ["Windows", "iOS", "Android", "MacOS", "Linux"][Math.floor(Math.random() * 5)];
-                          
+                      filteredLinks.map((link, idx) => {
+                        if (link.isTxtRecord) {
+                          // رکورد ساختگی از txt file
                           return (
                             <TableRow key={link.id}>
                               <TableCell className="whitespace-nowrap">{link.id}</TableCell>
-                              <TableCell className="whitespace-nowrap">{shortLink}</TableCell>
-                              <TableCell className="whitespace-nowrap max-w-[200px] truncate">
-                                {link.fullLink}
-                              </TableCell>
-                              <TableCell className="whitespace-nowrap max-w-[150px] truncate">
-                                {page?.title || 'No title'}
-                              </TableCell>
-                              <TableCell className="whitespace-nowrap">{link.pageId}</TableCell>
-                              <TableCell className="whitespace-nowrap">
-                                {format(new Date(link.createdAt), "PPP")}
-                              </TableCell>
+                              <TableCell className="whitespace-nowrap">Txt File</TableCell>
+                              <TableCell className="whitespace-nowrap max-w-[200px] truncate">{link.fullLink}</TableCell>
+                              <TableCell className="whitespace-nowrap max-w-[150px] truncate">-</TableCell>
+                              <TableCell className="whitespace-nowrap">-</TableCell>
+                              <TableCell className="whitespace-nowrap">{link.createdAt}</TableCell>
                               <TableCell className="whitespace-nowrap">{link.visits}</TableCell>
+                              <TableCell className="whitespace-nowrap">{link.status}</TableCell>
+                              <TableCell className="whitespace-nowrap">{link.device}</TableCell>
+                              <TableCell className="whitespace-nowrap">{link.platform}</TableCell>
                               <TableCell className="whitespace-nowrap">
-                                {lastVisit ? format(new Date(lastVisit), "PPP") : "Never"}
-                              </TableCell>
-                              <TableCell className="whitespace-nowrap">
-                                <span className={`px-2 py-1 rounded-full text-xs ${status === "Active" ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}`}>
-                                  {status}
-                                </span>
-                              </TableCell>
-                              <TableCell className="whitespace-nowrap">{device}</TableCell>
-                              <TableCell className="whitespace-nowrap">{platform}</TableCell>
-                              <TableCell className="whitespace-nowrap">
-                                <div className="flex gap-2">
-                                  <Button 
-                                    variant="ghost" 
-                                    size="sm"
-                                    onClick={() => window.open(`/preview/${link.pageId}`, '_blank')}
-                                    title="View"
-                                  >
-                                    <Eye className="h-4 w-4" />
-                                  </Button>
-                                  <Button 
-                                    variant="ghost" 
-                                    size="sm" 
-                                    onClick={() => handleDeleteLink(link.id)}
-                                    title="Delete"
-                                  >
-                                    <Trash2 className="h-4 w-4 text-destructive" />
-                                  </Button>
-                                </div>
+                                {/* نمایش جزئیات (مثلاً دیالوگ یا داخل Card) */}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    // نمایش اطلاعات کامل رکورد txt (می‌توانید این را با دیالوگ توسعه دهید)
+                                    alert(
+                                      link.rawRows
+                                        .map((row: any) => `${row.label}: ${row.value}`)
+                                        .join("\n")
+                                    );
+                                  }}
+                                  title="Show Raw Data"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
                               </TableCell>
                             </TableRow>
                           );
-                        })
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </TabsContent>
+                        }
+                        // رکورد واقعی لینک
+                        const shortLink = link.fullLink?.split("/").pop() || "";
+
+                        return (
+                          <TableRow key={link.id}>
+                            <TableCell className="whitespace-nowrap">{link.id}</TableCell>
+                            <TableCell className="whitespace-nowrap">{shortLink}</TableCell>
+                            <TableCell className="whitespace-nowrap max-w-[200px] truncate">
+                              {link.fullLink}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap max-w-[150px] truncate">
+                              {link.pageTitle}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap">{link.pageId}</TableCell>
+                            <TableCell className="whitespace-nowrap">
+                              {format(new Date(link.createdAt), "PPP")}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap">{link.visits}</TableCell>
+                            <TableCell className="whitespace-nowrap">
+                              <span className={`px-2 py-1 rounded-full text-xs ${link.status === "Active" ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}`}>
+                                {link.status}
+                              </span>
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap">{link.device}</TableCell>
+                            <TableCell className="whitespace-nowrap">{link.platform}</TableCell>
+                            <TableCell className="whitespace-nowrap">
+                              <div className="flex gap-2">
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => window.open(`/preview/${link.pageId}`, '_blank')}
+                                  title="View"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  onClick={() => handleDeleteLink(link.id)}
+                                  title="Delete"
+                                >
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </TabsContent>
+            
               
               <TabsContent value="pages" className="mt-4">
                 <div className="rounded-lg border overflow-auto">
