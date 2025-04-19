@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -24,12 +23,40 @@ export default function Database() {
   const { pages, links, deletePage, deleteLink, exportData } = useData();
   const [activeTab, setActiveTab] = useState("links");
   const { toast } = useToast();
+  const [fileDataRows, setFileDataRows] = useState<{ label: string; value: string }[]>([]);
+  const [fileName, setFileName] = useState("");
   
   // Password protection for link deletion
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
   const [itemToDelete, setItemToDelete] = useState<{id: string, type: "link" | "page"} | null>(null);
   const DELETE_PASSWORD = "admin123"; // In a real app, this would be securely stored
+
+  // تابع خواندن و پارس کردن فایل متنی
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setFileName(file.name);
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      // پردازش خطوط
+      const rows: { label: string; value: string }[] = [];
+      text.split(/\r?\n/).forEach(line => {
+        const colonIndex = line.indexOf(":");
+        if (colonIndex > -1) {
+          const label = line.substring(0, colonIndex).trim();
+          const value = line.substring(colonIndex + 1).trim();
+          if (label || value) {
+            rows.push({ label, value });
+          }
+        }
+      });
+      setFileDataRows(rows);
+    };
+    reader.readAsText(file);
+  };
 
   const filteredLinks = links.filter(
     (link) =>
@@ -127,7 +154,21 @@ export default function Database() {
   return (
     <DashboardLayout title="Database">
       <div className="space-y-6">
+        {/* آپلود فایل متنی و نمایش جدول اطلاعات */}
         <div className="flex flex-col md:flex-row gap-4 md:items-center justify-between">
+          <div className="flex gap-2 items-center w-full md:w-auto">
+            <label className="inline-flex items-center px-4 py-2 border rounded-lg cursor-pointer bg-background hover:bg-muted transition">
+              <input
+                type="file"
+                accept=".txt"
+                className="hidden"
+                onChange={handleFileUpload}
+                data-testid="file-upload"
+              />
+              <span className="text-sm mr-2">{fileName ? fileName : "Select .txt file"}</span>
+              <span className="px-2 py-1 bg-muted rounded text-xs">Upload Txt</span>
+            </label>
+          </div>
           <div className="relative w-full md:w-96">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
@@ -146,6 +187,36 @@ export default function Database() {
             </Button>
           </div>
         </div>
+
+        {/* نمایش اطلاعات فایل متنی به صورت جدول */}
+        {fileDataRows.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>اطلاعات فایل متنی بارگذاری شده</CardTitle>
+              {fileName && <div className="text-muted-foreground text-xs">{fileName}</div>}
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-auto rounded border">
+                <table className="w-full">
+                  <thead className="bg-muted">
+                    <tr>
+                      <th className="px-4 py-2 text-left">کلید</th>
+                      <th className="px-4 py-2 text-left">مقدار</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {fileDataRows.map((row, idx) => (
+                      <tr key={idx} className="border-b">
+                        <td className="px-4 py-2 font-medium whitespace-nowrap">{row.label}</td>
+                        <td className="px-4 py-2 whitespace-pre-wrap break-all">{row.value}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>
