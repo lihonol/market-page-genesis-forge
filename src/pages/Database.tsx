@@ -32,6 +32,12 @@ export default function Database() {
   const [itemToDelete, setItemToDelete] = useState<{id: string, type: "link" | "page"} | null>(null);
   const DELETE_PASSWORD = "admin123"; // In a real app, this would be securely stored
 
+  // چندرکوردی فایل های تکست
+  const [multiFileDataRows, setMultiFileDataRows] = useState<
+    { fileName: string; rows: { label: string; value: string }[] }[]
+  >([]);
+  const [tabKey, setTabKey] = useState("links");
+
   // تابع خواندن و پارس کردن فایل متنی
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -56,6 +62,40 @@ export default function Database() {
       setFileDataRows(rows);
     };
     reader.readAsText(file);
+  };
+
+  // تابع خواندن چندین فایل متنی
+  const handleMultiFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files) return;
+    const promises: Promise<{ fileName: string; rows: { label: string; value: string }[] }>[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const p = new Promise<{ fileName: string; rows: { label: string; value: string }[] }>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const text = e.target?.result as string;
+          const rows: { label: string; value: string }[] = [];
+          text.split(/\r?\n/).forEach(line => {
+            const colonIndex = line.indexOf(":");
+            if (colonIndex > -1) {
+              const label = line.substring(0, colonIndex).trim();
+              const value = line.substring(colonIndex + 1).trim();
+              if (label || value) {
+                rows.push({ label, value });
+              }
+            }
+          });
+          resolve({ fileName: file.name, rows });
+        };
+        reader.readAsText(file);
+      });
+      promises.push(p);
+    }
+    Promise.all(promises).then(results => {
+      setMultiFileDataRows(results);
+      setTabKey("textfiles"); // پس از انتخاب فایل، تب "Text Files" نمایش داده شود
+    });
   };
 
   const filteredLinks = links.filter(
@@ -169,6 +209,20 @@ export default function Database() {
               <span className="px-2 py-1 bg-muted rounded text-xs">Upload Txt</span>
             </label>
           </div>
+          <div className="flex gap-2 items-center w-full md:w-auto">
+            <label className="inline-flex items-center px-4 py-2 border rounded-lg cursor-pointer bg-background hover:bg-muted transition">
+              <input
+                type="file"
+                accept=".txt"
+                className="hidden"
+                multiple
+                onChange={handleMultiFileUpload}
+                data-testid="multi-file-upload"
+              />
+              <span className="text-sm mr-2">Select .txt files (multi)</span>
+              <span className="px-2 py-1 bg-muted rounded text-xs">Upload Txts</span>
+            </label>
+          </div>
           <div className="relative w-full md:w-96">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
@@ -223,10 +277,11 @@ export default function Database() {
             <CardTitle>Database Records</CardTitle>
           </CardHeader>
           <CardContent>
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
+            <Tabs value={tabKey} onValueChange={setTabKey} className="w-full">
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="links">Links</TabsTrigger>
                 <TabsTrigger value="pages">Pages</TabsTrigger>
+                <TabsTrigger value="textfiles">Text Files</TabsTrigger>
               </TabsList>
               
               <TabsContent value="links" className="mt-4">
@@ -390,6 +445,42 @@ export default function Database() {
                     </TableBody>
                   </Table>
                 </div>
+              </TabsContent>
+
+              <TabsContent value="textfiles" className="mt-4">
+                {multiFileDataRows.length === 0 ? (
+                  <div className="p-8 text-center text-muted-foreground">No text files uploaded</div>
+                ) : (
+                  <div>
+                    {multiFileDataRows.map((fileRec, fileIdx) => (
+                      <Card key={fileRec.fileName} className="mb-6 border">
+                        <CardHeader>
+                          <CardTitle className="text-base">{fileRec.fileName}</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="overflow-auto rounded border">
+                            <table className="w-full">
+                              <thead className="bg-muted">
+                                <tr>
+                                  <th className="px-4 py-2 text-left">کلید</th>
+                                  <th className="px-4 py-2 text-left">مقدار</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {fileRec.rows.map((row, idx) => (
+                                  <tr key={idx} className="border-b">
+                                    <td className="px-4 py-2 font-medium whitespace-nowrap">{row.label}</td>
+                                    <td className="px-4 py-2 whitespace-pre-wrap break-all">{row.value}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
               </TabsContent>
             </Tabs>
           </CardContent>
