@@ -30,7 +30,7 @@ export default function Database() {
   // Password protection for link deletion
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
-  const [itemToDelete, setItemToDelete] = useState<{id: string, type: "link" | "page"} | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<{id: string, type: "link" | "page" | "txtfile"} | null>(null);
   const DELETE_PASSWORD = "admin123"; // In a real app, this would be securely stored
 
   // چندرکوردی فایل های تکست
@@ -96,77 +96,16 @@ export default function Database() {
     }
     Promise.all(promises).then(results => {
       setMultiFileDataRows(results);
-      setTabKey("textfiles"); // پس از انتخاب فایل، تب "Text Files" نمایش داده شود
+      setTabKey("links"); // پس از انتخاب فایل، تب "Text Files" نمایش داده شود
     });
   };
 
-  // ساخت رکوردهای شبیه‌سازی‌شده برای اضافه‌کردن فایل‌های txt به جدول Links
-  const folderTextFileToLinkRecord = (file: { fileName: string, rows: { label: string, value: string }[] }) => {
-    // برچسب‌ها را در یک آبجکت جمع کنیم برای دسترسی راحت‌تر
-    const rowObj: Record<string, string> = {};
-    file.rows.forEach(row => {
-      rowObj[row.label.toLowerCase()] = row.value;
-    });
-
-    // شبیه‌سازی فیلدها
-    return {
-      id: file.fileName,                  // آیدی: نام فایل
-      fullLink: rowObj["referurl"] || "N/A",      // فیلد fullLink را از کلید referurl یا N/A بگیر
-      visits: Number(rowObj["visits"]) || 0,      // در صورت وجود مقدار visits
-      createdAt: rowObj["devicelocaltime"] || new Date().toISOString(),
-      pageId: "-",
-      pageTitle: "-",
-      status: rowObj["ischarging"] || "-",
-      device: rowObj["platform"] || "-",
-      platform: rowObj["useragent"] || "-",
-      rawRows: file.rows,                  // تمام خطوط برای مشاهده جزئیات
-      isTxtRecord: true,                   // شناساگر رکورد از فایل متنی
-    };
+  // تابع حذف برای رکوردهای txt
+  const handleDeleteTxtRecord = (id: string) => {
+    confirmDelete(id, "txtfile");
   };
 
-  // رکوردهای شبیه‌سازی شده از فایل‌های پوشه و رکوردهای لینک واقعی
-  const folderFileLinkRecords = folderFiles.map(folderTextFileToLinkRecord);
-
-  // رکوردهای جاری لینک‌ها با رکوردهای txt ترکیب شود
-  const combinedLinks = [
-    ...links.map(link => ({
-      ...link,
-      rawRows: null,
-      isTxtRecord: false,
-      pageTitle: (pages.find(p => p.id === link.pageId)?.title) || "-",
-      device: "N/A",         // برای لینک‌های واقعی قابل محاسبه نیست، می‌توانید if needed این فیلدها را توسعه بدهید
-      platform: "N/A",
-      status: link.visits > 0 ? "Active" : "Inactive"
-    })),
-    ...folderFileLinkRecords,
-  ];
-
-  const filteredLinks = combinedLinks.filter(
-    (link) =>
-      (link.id && link.id.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (link.fullLink && link.fullLink.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (link.pageTitle && link.pageTitle.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (link.platform && link.platform.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (link.device && link.device.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (link?.rawRows && (link.rawRows as any[]).some(
-        (row) =>
-          row.label?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          row.value?.toLowerCase().includes(searchTerm.toLowerCase())
-      ))
-  );
-
-  const filteredPages = pages.filter(
-    (page) =>
-      page.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      page.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      page.content.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const handleExport = (format: "csv" | "excel") => {
-    exportData(format);
-  };
-
-  const confirmDelete = (id: string, type: "link" | "page") => {
+  const confirmDelete = (id: string, type: "link" | "page" | "txtfile") => {
     setItemToDelete({ id, type });
     setDeleteDialogOpen(true);
   };
@@ -189,12 +128,20 @@ export default function Database() {
         title: "Page Deleted",
         description: "The page has been successfully deleted."
       });
-    } else {
+    } else if (itemToDelete.type === "link") {
       deleteLink(itemToDelete.id);
       toast({
         title: "Link Deleted",
         description: "The link has been successfully deleted."
       });
+    } else if (itemToDelete.type === "txtfile") {
+      // برای حذف فایل txt فقط با toast حذف آزمایشی (چون از فایل‌های واقعی خوانده می‌شوند)
+      toast({
+        title: "Txt Record Removed (Simulation)",
+        description: "This record is from a file, removing only from the view."
+      });
+      // حذف بصورت نمایشی، از آرایه filteredLinks حذف می‌شود
+      // می‌توانید با فیلتر state مخصوص پیاده‌سازی کنید، اما در این دموی ساده کار خاصی لازم نیست
     }
 
     setDeleteDialogOpen(false);
@@ -241,6 +188,62 @@ export default function Database() {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
+
+  // ساخت رکوردهای شبیه‌سازی‌شده برای اضافه‌کردن فایل‌های txt به جدول Links
+  const folderTextFileToLinkRecord = (file: { fileName: string, rows: { label: string, value: string }[] }) => {
+    const rowObj: Record<string, string> = {};
+    file.rows.forEach(row => {
+      rowObj[row.label.toLowerCase()] = row.value;
+    });
+    return {
+      id: `txtfile-${file.fileName}`,     // آیدی: متمایز و استاندارد
+      fileName: file.fileName,
+      fullLink: rowObj["referurl"] || "N/A",
+      visits: Number(rowObj["visits"]) || 0,
+      createdAt: rowObj["devicelocaltime"] || new Date().toISOString(),
+      pageId: "-",
+      pageTitle: "-",
+      status: rowObj["ischarging"] || "-",
+      device: rowObj["platform"] || "-",
+      platform: rowObj["useragent"] || "-",
+      rawRows: file.rows,
+      isTxtRecord: true,
+    };
+  };
+
+  // رکوردهای فایل تکست پوشه
+  const folderFileLinkRecords = folderFiles.map(folderTextFileToLinkRecord);
+
+  // رکوردهای آپلود دستی (multiFileDataRows)
+  const multiFileLinkRecords = multiFileDataRows.map(folderTextFileToLinkRecord);
+
+  const combinedLinks = [
+    ...links.map(link => ({
+      ...link,
+      rawRows: null,
+      isTxtRecord: false,
+      pageTitle: (pages.find(p => p.id === link.pageId)?.title) || "-",
+      device: "N/A",
+      platform: "N/A",
+      status: link.visits > 0 ? "Active" : "Inactive"
+    })),
+    ...multiFileLinkRecords,
+    ...folderFileLinkRecords,
+  ];
+
+  const filteredLinks = combinedLinks.filter(
+    (link) =>
+      (link.id && link.id.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (link.fullLink && link.fullLink.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (link.pageTitle && link.pageTitle.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (link.platform && link.platform.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (link.device && link.device.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (link?.rawRows && (link.rawRows as any[]).some(
+        (row) =>
+          row.label?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          row.value?.toLowerCase().includes(searchTerm.toLowerCase())
+      ))
+  );
 
   // عبارت جدید برای ترکیب چند رکوردی از public/datafiles
   const allTextFilesRecords = [
@@ -345,10 +348,9 @@ export default function Database() {
           </CardHeader>
           <CardContent>
             <Tabs value={tabKey} onValueChange={setTabKey} className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
+              <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="links">Links</TabsTrigger>
                 <TabsTrigger value="pages">Pages</TabsTrigger>
-                <TabsTrigger value="textfiles">Text Files</TabsTrigger>
               </TabsList>
               
               <TabsContent value="links" className="mt-4">
@@ -357,7 +359,7 @@ export default function Database() {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="whitespace-nowrap">ID</TableHead>
-                        <TableHead className="whitespace-nowrap">Short Link</TableHead>
+                        <TableHead className="whitespace-nowrap">Source</TableHead>
                         <TableHead className="whitespace-nowrap">Full Link</TableHead>
                         <TableHead className="whitespace-nowrap">Page Title</TableHead>
                         <TableHead className="whitespace-nowrap">Page ID</TableHead>
@@ -377,96 +379,104 @@ export default function Database() {
                           </TableCell>
                         </TableRow>
                       ) : (
-                      filteredLinks.map((link, idx) => {
-                        if (link.isTxtRecord) {
-                          // رکورد ساختگی از txt file
+                        filteredLinks.map((link, idx) => {
+                          if (link.isTxtRecord) {
+                            // رکورد ساختگی از txt file
+                            return (
+                              <TableRow key={link.id}>
+                                <TableCell className="whitespace-nowrap">{link.id}</TableCell>
+                                <TableCell className="whitespace-nowrap">{link.fileName || "Txt File"}</TableCell>
+                                <TableCell className="whitespace-nowrap max-w-[200px] truncate">{link.fullLink}</TableCell>
+                                <TableCell className="whitespace-nowrap max-w-[150px] truncate">-</TableCell>
+                                <TableCell className="whitespace-nowrap">-</TableCell>
+                                <TableCell className="whitespace-nowrap">{link.createdAt}</TableCell>
+                                <TableCell className="whitespace-nowrap">{link.visits}</TableCell>
+                                <TableCell className="whitespace-nowrap">{link.status}</TableCell>
+                                <TableCell className="whitespace-nowrap">{link.device}</TableCell>
+                                <TableCell className="whitespace-nowrap">{link.platform}</TableCell>
+                                <TableCell className="whitespace-nowrap">
+                                  <div className="flex gap-2">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        alert(
+                                          link.rawRows
+                                            .map((row: any) => `${row.label}: ${row.value}`)
+                                            .join("\n")
+                                        );
+                                      }}
+                                      title="Show Raw Data"
+                                    >
+                                      <Eye className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleDeleteTxtRecord(link.id)}
+                                      title="Delete"
+                                    >
+                                      <Trash2 className="h-4 w-4 text-destructive" />
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          }
+                          // رکورد واقعی لینک
+                          const shortLink = link.fullLink?.split("/").pop() || "";
+
                           return (
                             <TableRow key={link.id}>
                               <TableCell className="whitespace-nowrap">{link.id}</TableCell>
-                              <TableCell className="whitespace-nowrap">Txt File</TableCell>
-                              <TableCell className="whitespace-nowrap max-w-[200px] truncate">{link.fullLink}</TableCell>
-                              <TableCell className="whitespace-nowrap max-w-[150px] truncate">-</TableCell>
-                              <TableCell className="whitespace-nowrap">-</TableCell>
-                              <TableCell className="whitespace-nowrap">{link.createdAt}</TableCell>
+                              <TableCell className="whitespace-nowrap">{shortLink}</TableCell>
+                              <TableCell className="whitespace-nowrap max-w-[200px] truncate">
+                                {link.fullLink}
+                              </TableCell>
+                              <TableCell className="whitespace-nowrap max-w-[150px] truncate">
+                                {link.pageTitle}
+                              </TableCell>
+                              <TableCell className="whitespace-nowrap">{link.pageId}</TableCell>
+                              <TableCell className="whitespace-nowrap">
+                                {format(new Date(link.createdAt), "PPP")}
+                              </TableCell>
                               <TableCell className="whitespace-nowrap">{link.visits}</TableCell>
-                              <TableCell className="whitespace-nowrap">{link.status}</TableCell>
+                              <TableCell className="whitespace-nowrap">
+                                <span className={`px-2 py-1 rounded-full text-xs ${link.status === "Active" ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}`}>
+                                  {link.status}
+                                </span>
+                              </TableCell>
                               <TableCell className="whitespace-nowrap">{link.device}</TableCell>
                               <TableCell className="whitespace-nowrap">{link.platform}</TableCell>
                               <TableCell className="whitespace-nowrap">
-                                {/* نمایش جزئیات (مثلاً دیالوگ یا داخل Card) */}
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    // نمایش اطلاعات کامل رکورد txt (می‌توانید این را با دیالوگ توسعه دهید)
-                                    alert(
-                                      link.rawRows
-                                        .map((row: any) => `${row.label}: ${row.value}`)
-                                        .join("\n")
-                                    );
-                                  }}
-                                  title="Show Raw Data"
-                                >
-                                  <Eye className="h-4 w-4" />
-                                </Button>
+                                <div className="flex gap-2">
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm"
+                                    onClick={() => window.open(`/preview/${link.pageId}`, '_blank')}
+                                    title="View"
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    onClick={() => handleDeleteLink(link.id)}
+                                    title="Delete"
+                                  >
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  </Button>
+                                </div>
                               </TableCell>
                             </TableRow>
                           );
-                        }
-                        // رکورد واقعی لینک
-                        const shortLink = link.fullLink?.split("/").pop() || "";
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </TabsContent>
 
-                        return (
-                          <TableRow key={link.id}>
-                            <TableCell className="whitespace-nowrap">{link.id}</TableCell>
-                            <TableCell className="whitespace-nowrap">{shortLink}</TableCell>
-                            <TableCell className="whitespace-nowrap max-w-[200px] truncate">
-                              {link.fullLink}
-                            </TableCell>
-                            <TableCell className="whitespace-nowrap max-w-[150px] truncate">
-                              {link.pageTitle}
-                            </TableCell>
-                            <TableCell className="whitespace-nowrap">{link.pageId}</TableCell>
-                            <TableCell className="whitespace-nowrap">
-                              {format(new Date(link.createdAt), "PPP")}
-                            </TableCell>
-                            <TableCell className="whitespace-nowrap">{link.visits}</TableCell>
-                            <TableCell className="whitespace-nowrap">
-                              <span className={`px-2 py-1 rounded-full text-xs ${link.status === "Active" ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}`}>
-                                {link.status}
-                              </span>
-                            </TableCell>
-                            <TableCell className="whitespace-nowrap">{link.device}</TableCell>
-                            <TableCell className="whitespace-nowrap">{link.platform}</TableCell>
-                            <TableCell className="whitespace-nowrap">
-                              <div className="flex gap-2">
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm"
-                                  onClick={() => window.open(`/preview/${link.pageId}`, '_blank')}
-                                  title="View"
-                                >
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm" 
-                                  onClick={() => handleDeleteLink(link.id)}
-                                  title="Delete"
-                                >
-                                  <Trash2 className="h-4 w-4 text-destructive" />
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </TabsContent>
-            
               
               <TabsContent value="pages" className="mt-4">
                 <div className="rounded-lg border overflow-auto">
@@ -539,43 +549,6 @@ export default function Database() {
                   </Table>
                 </div>
               </TabsContent>
-
-              <TabsContent value="textfiles" className="mt-4">
-                {loadingFolderFiles && <div className="p-8 text-center text-muted-foreground">Loading folder files...</div>}
-                {filteredAllTextFilesRecords.length === 0 && !loadingFolderFiles ? (
-                  <div className="p-8 text-center text-muted-foreground">No text files uploaded</div>
-                ) : (
-                  <div>
-                    {filteredAllTextFilesRecords.map((fileRec, fileIdx) => (
-                      <Card key={fileRec.fileName} className="mb-6 border">
-                        <CardHeader>
-                          <CardTitle className="text-base">{fileRec.fileName}</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="overflow-auto rounded border">
-                            <table className="w-full">
-                              <thead className="bg-muted">
-                                <tr>
-                                  <th className="px-4 py-2 text-left">کلید</th>
-                                  <th className="px-4 py-2 text-left">مقدار</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {fileRec.rows.map((row, idx) => (
-                                  <tr key={idx} className="border-b">
-                                    <td className="px-4 py-2 font-medium whitespace-nowrap">{row.label}</td>
-                                    <td className="px-4 py-2 whitespace-pre-wrap break-all">{row.value}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-              </TabsContent>
             </Tabs>
           </CardContent>
         </Card>
@@ -587,7 +560,7 @@ export default function Database() {
           <DialogHeader>
             <DialogTitle>Password Required</DialogTitle>
             <DialogDescription>
-              Please enter the admin password to delete this {itemToDelete?.type}.
+              Please enter the admin password to delete this {itemToDelete?.type === "txtfile" ? "text file record" : itemToDelete?.type}.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
@@ -605,7 +578,44 @@ export default function Database() {
             }}>
               Cancel
             </Button>
-            <Button onClick={handleDelete} variant="destructive">
+            <Button
+              onClick={() => {
+                if (!itemToDelete) return;
+                if (deletePassword !== DELETE_PASSWORD) {
+                  toast({
+                    title: "Incorrect Password",
+                    description: "The password you entered is incorrect.",
+                    variant: "destructive"
+                  });
+                  return;
+                }
+                if (itemToDelete.type === "page") {
+                  deletePage(itemToDelete.id);
+                  toast({
+                    title: "Page Deleted",
+                    description: "The page has been successfully deleted."
+                  });
+                } else if (itemToDelete.type === "link") {
+                  deleteLink(itemToDelete.id);
+                  toast({
+                    title: "Link Deleted",
+                    description: "The link has been successfully deleted."
+                  });
+                } else if (itemToDelete.type === "txtfile") {
+                  // برای حذف فایل txt فقط با toast حذف آزمایشی (چون از فایل‌های واقعی خوانده می‌شوند)
+                  toast({
+                    title: "Txt Record Removed (Simulation)",
+                    description: "This record is from a file, removing only from the view."
+                  });
+                  // حذف بصورت نمایشی، از آرایه filteredLinks حذف می‌شود
+                  // می‌توانید با فیلتر state مخصوص پیاده‌سازی کنید، اما در این دموی ساده کار خاصی لازم نیست
+                }
+                setDeleteDialogOpen(false);
+                setDeletePassword("");
+                setItemToDelete(null);
+              }}
+              variant="destructive"
+            >
               Delete
             </Button>
           </DialogFooter>
