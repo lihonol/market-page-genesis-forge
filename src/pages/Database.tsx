@@ -544,6 +544,7 @@ export default function Database() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </div>
     </DashboardLayout>
   );
 }
