@@ -1,11 +1,10 @@
-
 import React, { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useFolderTextFiles } from "@/hooks/useFolderTextFiles";
 import { useData } from "@/contexts/DataContext";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
-import { FileCsv, FileExcel, Eye, Trash2, Download } from "lucide-react";
+import { Files, Eye, Trash2, Download } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { format } from "date-fns";
 
@@ -147,10 +146,10 @@ export default function Database() {
             />
             <div className="flex gap-2">
               <Button onClick={() => handleExport("csv")} variant="outline">
-                <FileCsv className="h-4 w-4 mr-2" /> Export CSV
+                <Files className="h-4 w-4 mr-2" /> Export CSV
               </Button>
               <Button onClick={() => handleExport("excel")} variant="outline">
-                <FileExcel className="h-4 w-4 mr-2" /> Export Excel
+                <Files className="h-4 w-4 mr-2" /> Export Excel
               </Button>
             </div>
           </div>
