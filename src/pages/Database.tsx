@@ -395,12 +395,12 @@ export default function Database() {
                         </TableRow>
                       ) : (
                         filteredLinks.map((link, idx) => {
-                          if (link.isTxtRecord) {
+                          if ((link as any).isTxtRecord) {
                             // رکورد ساختگی از txt file
                             return (
                               <TableRow key={link.id}>
                                 <TableCell className="whitespace-nowrap">{link.id}</TableCell>
-                                <TableCell className="whitespace-nowrap">{link.fileName || "Txt File"}</TableCell>
+                                <TableCell className="whitespace-nowrap">{(link as any).fileName || "Txt File"}</TableCell>
                                 <TableCell className="whitespace-nowrap max-w-[200px] truncate">{link.fullLink}</TableCell>
                                 <TableCell className="whitespace-nowrap max-w-[150px] truncate">-</TableCell>
                                 <TableCell className="whitespace-nowrap">-</TableCell>
@@ -416,7 +416,7 @@ export default function Database() {
                                       size="sm"
                                       onClick={() => {
                                         alert(
-                                          link.rawRows
+                                          (link.rawRows as any[])
                                             .map((row: any) => `${row.label}: ${row.value}`)
                                             .join("\n")
                                         );
