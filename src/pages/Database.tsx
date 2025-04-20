@@ -276,6 +276,147 @@ export default function Database() {
     exportData(format);
   };
 
+  // برای فایل های txt، ستون‌ها را بر اساس لیبل‌های اولین فایل ایجاد می‌کنیم
+  const allFolderLabels = Array.from(
+    new Set(
+      folderFiles
+        .flatMap((file) => file.rows.map((row) => row.label))
+        // پاک کردن خالی
+        .filter(label => !!label)
+    )
+  );
+
+  // برای رکوردهای آپلودی multiFileDataRows هم لیبل‌ها را اضافه می‌کنیم (در صورت وجود)
+  const allMultiLabels = Array.from(
+    new Set(
+      multiFileDataRows
+        .flatMap((file) => file.rows.map((row) => row.label))
+        .filter(label => !!label)
+    )
+  );
+
+  // ترکیب تمام لیبل ها
+  const allCustomLabels = Array.from(new Set([...allFolderLabels, ...allMultiLabels]));
+
+  // صورت‌بندی رکورد txt به صورت ارائه شده (ID=filename بدون .txt)
+  function customTxtFileToRow(file: { fileName: string, rows: { label: string, value: string }[] }) {
+    const rowObj: Record<string, string> = {};
+    file.rows.forEach(row => {
+      rowObj[row.label] = row.value;
+    });
+    return {
+      id: file.fileName.replace(/\.txt$/i, ""),
+      fileName: file.fileName,
+      rowObj,
+      isTxtRecord: true,
+      rawRows: file.rows,
+    };
+  }
+
+  // تبدیل تمام فایل های پوشه و آپلودی به رکورد
+  const folderFileLinkRecords = folderFiles.map(customTxtFileToRow);
+  const multiFileLinkRecords = multiFileDataRows.map(customTxtFileToRow);
+
+  // رکوردهای لینک واقعی
+  const appLinkRecords = links.map(link => ({
+    ...link,
+    rawRows: null,
+    isTxtRecord: false,
+    pageTitle: (pages.find(p => p.id === link.pageId)?.title) || "-",
+    device: "N/A",
+    platform: "N/A",
+    status: link.visits > 0 ? "Active" : "Inactive"
+  }));
+
+  // ترکیب همه رکوردها
+  const combinedLinks = [
+    ...appLinkRecords,
+    ...multiFileLinkRecords,
+    ...folderFileLinkRecords,
+  ];
+
+  // حالا فقط بر پایه جستجو، این جدول را فیلتر می کنیم
+  const filteredLinks = combinedLinks.filter(link => {
+    if (link.isTxtRecord) {
+      // TXT file: جستجو بین فیلدها و آی‌دی و نام فایل
+      if (link.id && link.id.toLowerCase().includes(searchTerm.toLowerCase())) return true;
+      if (link.fileName && link.fileName.toLowerCase().includes(searchTerm.toLowerCase())) return true;
+      if (
+        link.rawRows &&
+        link.rawRows.some(
+          (row: any) =>
+            row.label?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            row.value?.toLowerCase().includes(searchTerm.toLowerCase())
+        )
+      ) { return true; }
+      return false;
+    }
+    // عادی (لینک‌های برنامه)
+    return (
+      (link.id && link.id.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (link.fullLink && link.fullLink.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (link.pageTitle && link.pageTitle.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (link.platform && link.platform.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (link.device && link.device.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+  });
+
+  // حذف رکورد txt (تنها از view حذف می‌شود - نمایشی)
+  const [deletedTxtIds, setDeletedTxtIds] = useState<string[]>([]);
+  const handleDeleteTxtRecord = (id: string) => {
+    confirmDelete(id, "txtfile");
+  };
+
+  // هنگام تأیید حذف txt
+  const confirmDelete = (id: string, type: "link" | "page" | "txtfile") => {
+    setItemToDelete({ id, type });
+    setDeleteDialogOpen(true);
+  };
+  // هنگام تأیید حذف (کمی تغییر - برای txt هم اعمال کنیم)
+  const handleDelete = () => {
+    if (!itemToDelete) return;
+    if (deletePassword !== DELETE_PASSWORD) {
+      toast({
+        title: "Incorrect Password",
+        description: "The password you entered is incorrect.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (itemToDelete.type === "page") {
+      deletePage(itemToDelete.id);
+      toast({
+        title: "Page Deleted",
+        description: "The page has been successfully deleted."
+      });
+    } else if (itemToDelete.type === "link") {
+      deleteLink(itemToDelete.id);
+      toast({
+        title: "Link Deleted",
+        description: "The link has been successfully deleted."
+      });
+    } else if (itemToDelete.type === "txtfile") {
+      toast({
+        title: "Txt Record Removed (Simulation)",
+        description: "This record is from a file, removing it only from the view."
+      });
+      setDeletedTxtIds(ids => [...ids, itemToDelete.id]);
+    }
+
+    setDeleteDialogOpen(false);
+    setDeletePassword("");
+    setItemToDelete(null);
+  };
+
+  // حذف رکوردهای txt حذف شده از جدول
+  const filteredLinksWithDeletes = filteredLinks.filter(link => {
+    if (link.isTxtRecord) {
+      return !deletedTxtIds.includes(link.id);
+    }
+    return true;
+  });
+
   return (
     <DashboardLayout title="Database">
       <div className="space-y-6">
@@ -362,18 +503,18 @@ export default function Database() {
             <CardTitle>Database Records</CardTitle>
           </CardHeader>
           <CardContent>
-            <Tabs value={tabKey} onValueChange={setTabKey} className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="links">Links</TabsTrigger>
-                <TabsTrigger value="pages">Pages</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="links" className="mt-4">
-                <div className="rounded-lg border overflow-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="whitespace-nowrap">ID</TableHead>
+            <div className="rounded-lg border overflow-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="whitespace-nowrap">ID</TableHead>
+                    {/* جدول برای TXT و لینک برنامه باید کمی منعطف باشد */}
+                    {/* اگر رکورد txt است, سرتیتر بر اساس labelها */}
+                    {filteredLinksWithDeletes.some(link => link.isTxtRecord) && allCustomLabels.map(label =>
+                      <TableHead key={label} className="whitespace-nowrap">{label}</TableHead>
+                    )}
+                    {!filteredLinksWithDeletes.some(link => link.isTxtRecord) && (
+                      <>
                         <TableHead className="whitespace-nowrap">Source</TableHead>
                         <TableHead className="whitespace-nowrap">Full Link</TableHead>
                         <TableHead className="whitespace-nowrap">Page Title</TableHead>
@@ -383,174 +524,50 @@ export default function Database() {
                         <TableHead className="whitespace-nowrap">Status</TableHead>
                         <TableHead className="whitespace-nowrap">Device</TableHead>
                         <TableHead className="whitespace-nowrap">Platform</TableHead>
-                        <TableHead className="whitespace-nowrap">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredLinks.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={11} className="text-center py-8">
-                            No links found
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        filteredLinks.map((link, idx) => {
-                          if ((link as any).isTxtRecord) {
-                            // رکورد ساختگی از txt file
-                            return (
-                              <TableRow key={link.id}>
-                                <TableCell className="whitespace-nowrap">{link.id}</TableCell>
-                                <TableCell className="whitespace-nowrap">{(link as any).fileName || "Txt File"}</TableCell>
-                                <TableCell className="whitespace-nowrap max-w-[200px] truncate">{link.fullLink}</TableCell>
-                                <TableCell className="whitespace-nowrap max-w-[150px] truncate">-</TableCell>
-                                <TableCell className="whitespace-nowrap">-</TableCell>
-                                <TableCell className="whitespace-nowrap">{link.createdAt}</TableCell>
-                                <TableCell className="whitespace-nowrap">{link.visits}</TableCell>
-                                <TableCell className="whitespace-nowrap">{link.status}</TableCell>
-                                <TableCell className="whitespace-nowrap">{link.device}</TableCell>
-                                <TableCell className="whitespace-nowrap">{link.platform}</TableCell>
-                                <TableCell className="whitespace-nowrap">
-                                  <div className="flex gap-2">
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => {
-                                        alert(
-                                          (link.rawRows as any[])
-                                            .map((row: any) => `${row.label}: ${row.value}`)
-                                            .join("\n")
-                                        );
-                                      }}
-                                      title="Show Raw Data"
-                                    >
-                                      <Eye className="h-4 w-4" />
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => handleDeleteTxtRecord(link.id)}
-                                      title="Delete"
-                                    >
-                                      <Trash2 className="h-4 w-4 text-destructive" />
-                                    </Button>
-                                  </div>
-                                </TableCell>
-                              </TableRow>
-                            );
-                          }
-                          // رکورد واقعی لینک
-                          const shortLink = link.fullLink?.split("/").pop() || "";
-
-                          return (
-                            <TableRow key={link.id}>
-                              <TableCell className="whitespace-nowrap">{link.id}</TableCell>
-                              <TableCell className="whitespace-nowrap">{shortLink}</TableCell>
-                              <TableCell className="whitespace-nowrap max-w-[200px] truncate">
-                                {link.fullLink}
+                      </>
+                    )}
+                    <TableHead className="whitespace-nowrap">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredLinksWithDeletes.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={allCustomLabels.length + 2} className="text-center py-8">
+                        No links found
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredLinksWithDeletes.map(link => {
+                      if (link.isTxtRecord) {
+                        // TXT file row
+                        return (
+                          <TableRow key={link.id}>
+                            <TableCell className="whitespace-nowrap">{link.id}</TableCell>
+                            {allCustomLabels.map(label => (
+                              <TableCell key={label} className="whitespace-nowrap">
+                                {link.rowObj[label] || ""}
                               </TableCell>
-                              <TableCell className="whitespace-nowrap max-w-[150px] truncate">
-                                {link.pageTitle}
-                              </TableCell>
-                              <TableCell className="whitespace-nowrap">{link.pageId}</TableCell>
-                              <TableCell className="whitespace-nowrap">
-                                {format(new Date(link.createdAt), "PPP")}
-                              </TableCell>
-                              <TableCell className="whitespace-nowrap">{link.visits}</TableCell>
-                              <TableCell className="whitespace-nowrap">
-                                <span className={`px-2 py-1 rounded-full text-xs ${link.status === "Active" ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}`}>
-                                  {link.status}
-                                </span>
-                              </TableCell>
-                              <TableCell className="whitespace-nowrap">{link.device}</TableCell>
-                              <TableCell className="whitespace-nowrap">{link.platform}</TableCell>
-                              <TableCell className="whitespace-nowrap">
-                                <div className="flex gap-2">
-                                  <Button 
-                                    variant="ghost" 
-                                    size="sm"
-                                    onClick={() => window.open(`/preview/${link.pageId}`, '_blank')}
-                                    title="View"
-                                  >
-                                    <Eye className="h-4 w-4" />
-                                  </Button>
-                                  <Button 
-                                    variant="ghost" 
-                                    size="sm" 
-                                    onClick={() => handleDeleteLink(link.id)}
-                                    title="Delete"
-                                  >
-                                    <Trash2 className="h-4 w-4 text-destructive" />
-                                  </Button>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </TabsContent>
-
-              {/* Pages Tab */}
-              <TabsContent value="pages" className="mt-4">
-                <div className="rounded-lg border overflow-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="whitespace-nowrap">ID</TableHead>
-                        <TableHead className="whitespace-nowrap">Title</TableHead>
-                        <TableHead className="whitespace-nowrap">Content</TableHead>
-                        <TableHead className="whitespace-nowrap">Menu Items</TableHead>
-                        <TableHead className="whitespace-nowrap">Created At</TableHead>
-                        <TableHead className="whitespace-nowrap">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredPages.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={6} className="text-center py-8">
-                            No pages found
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        filteredPages.map((page) => (
-                          <TableRow key={page.id}>
-                            <TableCell className="whitespace-nowrap">{page.id}</TableCell>
-                            <TableCell className="whitespace-nowrap max-w-[200px] truncate">
-                              {page.title}
-                            </TableCell>
-                            <TableCell className="whitespace-nowrap max-w-[200px] truncate">
-                              {page.content}
-                            </TableCell>
-                            <TableCell className="whitespace-nowrap">
-                              {page.menuItems.map(item => item.title).join(", ")}
-                            </TableCell>
-                            <TableCell className="whitespace-nowrap">
-                              {format(new Date(page.createdAt), "PPP")}
-                            </TableCell>
+                            ))}
                             <TableCell className="whitespace-nowrap">
                               <div className="flex gap-2">
-                                <Button 
-                                  variant="ghost" 
+                                <Button
+                                  variant="ghost"
                                   size="sm"
-                                  onClick={() => window.open(`/preview/${page.id}`, '_blank')}
-                                  title="View"
+                                  onClick={() => {
+                                    alert(
+                                      link.rawRows
+                                        .map((row: any) => `${row.label}: ${row.value}`)
+                                        .join("\n")
+                                    );
+                                  }}
+                                  title="Show Raw Data"
                                 >
                                   <Eye className="h-4 w-4" />
                                 </Button>
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm" 
-                                  onClick={() => handleDownloadPage(page.id)}
-                                  title="Download HTML"
-                                >
-                                  <FileDown className="h-4 w-4" />
-                                </Button>
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm" 
-                                  onClick={() => handleDeletePage(page.id)}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDeleteTxtRecord(link.id)}
                                   title="Delete"
                                 >
                                   <Trash2 className="h-4 w-4 text-destructive" />
@@ -558,13 +575,59 @@ export default function Database() {
                               </div>
                             </TableCell>
                           </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </TabsContent>
-            </Tabs>
+                        );
+                      }
+                      // برنامه اصلی
+                      const shortLink = link.fullLink?.split("/").pop() || "";
+                      return (
+                        <TableRow key={link.id}>
+                          <TableCell className="whitespace-nowrap">{link.id}</TableCell>
+                          <TableCell className="whitespace-nowrap">{shortLink}</TableCell>
+                          <TableCell className="whitespace-nowrap max-w-[200px] truncate">
+                            {link.fullLink}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap max-w-[150px] truncate">
+                            {link.pageTitle}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">{link.pageId}</TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            {format(new Date(link.createdAt), "PPP")}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">{link.visits}</TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            <span className={`px-2 py-1 rounded-full text-xs ${link.status === "Active" ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}`}>
+                              {link.status}
+                            </span>
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">{link.device}</TableCell>
+                          <TableCell className="whitespace-nowrap">{link.platform}</TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            <div className="flex gap-2">
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => window.open(`/preview/${link.pageId}`, '_blank')}
+                                title="View"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => handleDeleteLink(link.id)}
+                                title="Delete"
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -594,41 +657,7 @@ export default function Database() {
               Cancel
             </Button>
             <Button
-              onClick={() => {
-                if (!itemToDelete) return;
-                if (deletePassword !== DELETE_PASSWORD) {
-                  toast({
-                    title: "Incorrect Password",
-                    description: "The password you entered is incorrect.",
-                    variant: "destructive"
-                  });
-                  return;
-                }
-                if (itemToDelete.type === "page") {
-                  deletePage(itemToDelete.id);
-                  toast({
-                    title: "Page Deleted",
-                    description: "The page has been successfully deleted."
-                  });
-                } else if (itemToDelete.type === "link") {
-                  deleteLink(itemToDelete.id);
-                  toast({
-                    title: "Link Deleted",
-                    description: "The link has been successfully deleted."
-                  });
-                } else if (itemToDelete.type === "txtfile") {
-                  // برای حذف فایل txt فقط با toast حذف آزمایشی (چون از فایل‌های واقعی خوانده می‌شوند)
-                  toast({
-                    title: "Txt Record Removed (Simulation)",
-                    description: "This record is from a file, removing only from the view."
-                  });
-                  // حذف بصورت نمایشی, از آرایه filteredLinks حذف می‌شود
-                  // می‌توانید با فیلتر state مخصوص پیاده‌سازی کنید, اما در این دموی ساده کار خاصی لازم نیست
-                }
-                setDeleteDialogOpen(false);
-                setDeletePassword("");
-                setItemToDelete(null);
-              }}
+              onClick={handleDelete}
               variant="destructive"
             >
               Delete
