@@ -1,5 +1,6 @@
 
 import React, { useState, useMemo } from "react";
+import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useFolderTextFiles } from "@/hooks/useFolderTextFiles";
@@ -184,168 +185,171 @@ export default function Database() {
     toast({ title: "Page deleted" });
   };
 
+  // Wrapped with dashboard layout:
   return (
-    <div className="max-w-7xl mx-auto py-10 space-y-6">
-      {/* ---- Links Table Section ---- */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Links</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col md:flex-row gap-4 md:items-center justify-between mb-3">
-            <input
-              className="border rounded-lg px-4 py-2 w-full md:w-96"
-              placeholder="Search record..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
-            <div className="flex gap-2">
-              <Button onClick={() => handleExport("csv")} variant="outline">
-                <Files className="h-4 w-4 mr-2" /> Export CSV
-              </Button>
-              <Button onClick={() => handleExport("excel")} variant="outline">
-                <Files className="h-4 w-4 mr-2" /> Export Excel
-              </Button>
-            </div>
-          </div>
-          <div>
-            <label className="block mb-2 font-semibold">
-              Upload text file
-            </label>
-            <div className="flex gap-2 items-center mb-4">
+    <DashboardLayout title="Database">
+      <div className="max-w-7xl mx-auto py-10 space-y-6">
+        {/* ---- Text Files Database Table Section ---- */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Text Files Database Table</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col md:flex-row gap-4 md:items-center justify-between mb-3">
               <input
-                type="file"
-                accept=".txt"
-                onChange={handleFileUpload}
-                disabled={uploading}
-                className="block"
+                className="border rounded-lg px-4 py-2 w-full md:w-96"
+                placeholder="Search record..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
               />
-              {uploading && <span className="text-sm">Uploading...</span>}
-              {uploadError && (
-                <span className="text-red-600 text-xs ml-2">{uploadError}</span>
-              )}
+              <div className="flex gap-2">
+                <Button onClick={() => handleExport("csv")} variant="outline">
+                  <Files className="h-4 w-4 mr-2" /> Export CSV
+                </Button>
+                <Button onClick={() => handleExport("excel")} variant="outline">
+                  <Files className="h-4 w-4 mr-2" /> Export Excel
+                </Button>
+              </div>
             </div>
-            <div className="text-xs text-muted-foreground mb-4">
-              Place your <code>.txt</code> files in <code>/public/datafiles/</code>.<br />
-              After uploading, move the file to that folder and reload to see it in the table.
-            </div>
-          </div>
-          <div className="overflow-auto rounded border bg-background">
-            <table className="w-full min-w-max border-collapse">
-              <thead className="bg-muted">
-                <tr>
-                  <th className="px-4 py-2 whitespace-nowrap text-left font-semibold text-sm">
-                    ID
-                  </th>
-                  {FIXED_LABELS.map(label => (
-                    <th
-                      key={label}
-                      className="px-4 py-2 whitespace-nowrap text-left font-semibold text-sm"
-                    >
-                      {label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={FIXED_LABELS.length + 1} className="text-center py-8">
-                      Reading files...
-                    </td>
-                  </tr>
-                ) : filteredFiles.length === 0 ? (
-                  <tr>
-                    <td colSpan={FIXED_LABELS.length + 1} className="text-center py-8">
-                      No text files found.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredFiles.map(file => {
-                    const rowObj = getRowObj(file.rows);
-                    return (
-                      <tr key={file.fileName} className="border-b last:border-b-0">
-                        <td className="px-4 py-2 font-mono text-sm whitespace-nowrap">{file.fileName}</td>
-                        {FIXED_LABELS.map(label => (
-                          <td key={label} className="px-4 py-2 text-xs whitespace-pre-wrap break-all">
-                            {rowObj[label] || ""}
-                          </td>
-                        ))}
-                      </tr>
-                    );
-                  })
+            <div>
+              <label className="block mb-2 font-semibold">
+                Upload text file
+              </label>
+              <div className="flex gap-2 items-center mb-4">
+                <input
+                  type="file"
+                  accept=".txt"
+                  onChange={handleFileUpload}
+                  disabled={uploading}
+                  className="block"
+                />
+                {uploading && <span className="text-sm">Uploading...</span>}
+                {uploadError && (
+                  <span className="text-red-600 text-xs ml-2">{uploadError}</span>
                 )}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+              </div>
+              <div className="text-xs text-muted-foreground mb-4">
+                Place your <code>.txt</code> files in <code>/public/datafiles/</code>.<br />
+                After uploading, move the file to that folder and reload to see it in the table.
+              </div>
+            </div>
+            <div className="overflow-auto rounded border bg-background">
+              <table className="w-full min-w-max border-collapse">
+                <thead className="bg-muted">
+                  <tr>
+                    <th className="px-4 py-2 whitespace-nowrap text-left font-semibold text-sm">
+                      ID
+                    </th>
+                    {FIXED_LABELS.map(label => (
+                      <th
+                        key={label}
+                        className="px-4 py-2 whitespace-nowrap text-left font-semibold text-sm"
+                      >
+                        {label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={FIXED_LABELS.length + 1} className="text-center py-8">
+                        Reading files...
+                      </td>
+                    </tr>
+                  ) : filteredFiles.length === 0 ? (
+                    <tr>
+                      <td colSpan={FIXED_LABELS.length + 1} className="text-center py-8">
+                        No text files found.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredFiles.map(file => {
+                      const rowObj = getRowObj(file.rows);
+                      return (
+                        <tr key={file.fileName} className="border-b last:border-b-0">
+                          <td className="px-4 py-2 font-mono text-sm whitespace-nowrap">{file.fileName}</td>
+                          {FIXED_LABELS.map(label => (
+                            <td key={label} className="px-4 py-2 text-xs whitespace-pre-wrap break-all">
+                              {rowObj[label] || ""}
+                            </td>
+                          ))}
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
 
-      {/* ---- Pages Table Section ---- */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Pages</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-auto rounded border bg-background">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {pages.length === 0 ? (
+        {/* ---- Pages Table Section ---- */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Pages</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-auto rounded border bg-background">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={3} className="text-center text-sm">
-                      No pages found.
-                    </TableCell>
+                    <TableHead>Title</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
-                ) : (
-                  pages.map(page => (
-                    <TableRow key={page.id}>
-                      <TableCell>{page.title}</TableCell>
-                      <TableCell>{format(new Date(page.createdAt), "PPP")}</TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() =>
-                              window.open(`/preview/${page.id}`, "_blank")
-                            }
-                            title="View"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDownloadPage(page.id)}
-                            title="Download"
-                          >
-                            <Download className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDeletePage(page.id)}
-                            title="Delete"
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </div>
+                </TableHeader>
+                <TableBody>
+                  {pages.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={3} className="text-center text-sm">
+                        No pages found.
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+                  ) : (
+                    pages.map(page => (
+                      <TableRow key={page.id}>
+                        <TableCell>{page.title}</TableCell>
+                        <TableCell>{format(new Date(page.createdAt), "PPP")}</TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() =>
+                                window.open(`/preview/${page.id}`, "_blank")
+                              }
+                              title="View"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDownloadPage(page.id)}
+                              title="Download"
+                            >
+                              <Download className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeletePage(page.id)}
+                              title="Delete"
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </DashboardLayout>
   );
 }
