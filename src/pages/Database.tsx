@@ -3,7 +3,6 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useData } from "@/contexts/DataContext";
 import { Download, FileDown, Trash2, Eye, Search } from "lucide-react";
 import {
@@ -22,34 +21,26 @@ import { useFolderTextFiles } from "@/hooks/useFolderTextFiles";
 export default function Database() {
   const [searchTerm, setSearchTerm] = useState("");
   const { pages, links, deletePage, deleteLink, exportData } = useData();
-  const [activeTab, setActiveTab] = useState("links");
   const { toast } = useToast();
   const [fileDataRows, setFileDataRows] = useState<{ label: string; value: string }[]>([]);
   const [fileName, setFileName] = useState("");
-  
-  // Password protection for link deletion
+
+  // Password protection for deletion
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
   const [itemToDelete, setItemToDelete] = useState<{id: string, type: "link" | "page" | "txtfile"} | null>(null);
   const DELETE_PASSWORD = "admin123"; // In a real app, this would be securely stored
 
-  // چندرکوردی فایل های تکست
+  // Multi-txt upload
   const [multiFileDataRows, setMultiFileDataRows] = useState<
     { fileName: string; rows: { label: string; value: string }[] }[]
   >([]);
-  const [tabKey, setTabKey] = useState("links");
-  const { files: folderFiles, loading: loadingFolderFiles } = useFolderTextFiles();
+  const { files: folderFiles } = useFolderTextFiles();
 
-  // 1. Define filteredPages to filter pages by searchTerm, similar to filteredLinks
-  const filteredPages = pages.filter(
-    (page) =>
-      (page.id && page.id.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (page.title && page.title.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (page.content && page.content.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (page.menuItems && page.menuItems.some(item => item.title.toLowerCase().includes(searchTerm.toLowerCase())))
-  );
+  // حذف رکورد txt (تنها از view حذف می‌شود - نمایشی)
+  const [deletedTxtIds, setDeletedTxtIds] = useState<string[]>([]);
 
-  // تابع خواندن و پارس کردن فایل متنی
+  // Helpers for reading uploaded files
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -58,7 +49,6 @@ export default function Database() {
     const reader = new FileReader();
     reader.onload = (e) => {
       const text = e.target?.result as string;
-      // پردازش خطوط
       const rows: { label: string; value: string }[] = [];
       text.split(/\r?\n/).forEach(line => {
         const colonIndex = line.indexOf(":");
@@ -75,7 +65,6 @@ export default function Database() {
     reader.readAsText(file);
   };
 
-  // تابع خواندن چندین فایل متنی
   const handleMultiFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files) return;
@@ -105,201 +94,11 @@ export default function Database() {
     }
     Promise.all(promises).then(results => {
       setMultiFileDataRows(results);
-      setTabKey("links"); // پس از انتخاب فایل، تب "Text Files" نمایش داده شود
     });
   };
 
-  // تابع حذف برای رکوردهای txt
-  const handleDeleteTxtRecord = (id: string) => {
-    confirmDelete(id, "txtfile");
-  };
-
-  const confirmDelete = (id: string, type: "link" | "page" | "txtfile") => {
-    setItemToDelete({ id, type });
-    setDeleteDialogOpen(true);
-  };
-
-  const handleDelete = () => {
-    if (!itemToDelete) return;
-    
-    if (deletePassword !== DELETE_PASSWORD) {
-      toast({
-        title: "Incorrect Password",
-        description: "The password you entered is incorrect.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    if (itemToDelete.type === "page") {
-      deletePage(itemToDelete.id);
-      toast({
-        title: "Page Deleted",
-        description: "The page has been successfully deleted."
-      });
-    } else if (itemToDelete.type === "link") {
-      deleteLink(itemToDelete.id);
-      toast({
-        title: "Link Deleted",
-        description: "The link has been successfully deleted."
-      });
-    } else if (itemToDelete.type === "txtfile") {
-      // برای حذف فایل txt فقط با toast حذف آزمایشی (چون از فایل‌های واقعی خوانده می‌شوند)
-      toast({
-        title: "Txt Record Removed (Simulation)",
-        description: "This record is from a file, removing only from the view."
-      });
-      // حذف بصورت نمایشی، از آرایه filteredLinks حذف می‌شود
-      // می‌توانید با فیلتر state مخصوص پیاده‌سازی کنید، اما در این دموی ساده کار خاصی لازم نیست
-    }
-
-    setDeleteDialogOpen(false);
-    setDeletePassword("");
-    setItemToDelete(null);
-  };
-
-  const handleDeletePage = (id: string) => {
-    confirmDelete(id, "page");
-  };
-
-  const handleDeleteLink = (id: string) => {
-    confirmDelete(id, "link");
-  };
-
-  const handleDownloadPage = (id: string) => {
-    // In a real app, this would trigger a download of the HTML page
-    const page = pages.find(p => p.id === id);
-    if (!page) return;
-    
-    // Create a simple HTML page for demonstration purposes
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>${page.title}</title>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        </head>
-        <body>
-          <h1>${page.title}</h1>
-          <div>${page.content}</div>
-        </body>
-      </html>
-    `;
-    
-    const blob = new Blob([htmlContent], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `page-${id}.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  // ساخت رکوردهای شبیه‌سازی‌شده برای اضافه‌کردن فایل‌های txt به جدول Links
-  const folderTextFileToLinkRecord = (file: { fileName: string, rows: { label: string, value: string }[] }) => {
-    const rowObj: Record<string, string> = {};
-    file.rows.forEach(row => {
-      rowObj[row.label.toLowerCase()] = row.value;
-    });
-    return {
-      id: `txtfile-${file.fileName}`,     // آیدی: متمایز و استاندارد
-      fileName: file.fileName,
-      fullLink: rowObj["referurl"] || "N/A",
-      visits: Number(rowObj["visits"]) || 0,
-      createdAt: rowObj["devicelocaltime"] || new Date().toISOString(),
-      pageId: "-",
-      pageTitle: "-",
-      status: rowObj["ischarging"] || "-",
-      device: rowObj["platform"] || "-",
-      platform: rowObj["useragent"] || "-",
-      rawRows: file.rows,
-      isTxtRecord: true,
-    };
-  };
-
-  // رکوردهای فایل تکست پوشه
-  const folderFileLinkRecords = folderFiles.map(folderTextFileToLinkRecord);
-
-  // رکوردهای آپلود دستی (multiFileDataRows)
-  const multiFileLinkRecords = multiFileDataRows.map(folderTextFileToLinkRecord);
-
-  const combinedLinks = [
-    ...links.map(link => ({
-      ...link,
-      rawRows: null,
-      isTxtRecord: false,
-      pageTitle: (pages.find(p => p.id === link.pageId)?.title) || "-",
-      device: "N/A",
-      platform: "N/A",
-      status: link.visits > 0 ? "Active" : "Inactive"
-    })),
-    ...multiFileLinkRecords,
-    ...folderFileLinkRecords,
-  ];
-
-  const filteredLinks = combinedLinks.filter(
-    (link) =>
-      (link.id && link.id.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (link.fullLink && link.fullLink.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (link.pageTitle && link.pageTitle.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (link.platform && link.platform.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (link.device && link.device.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (link?.rawRows && (link.rawRows as any[]).some(
-        (row) =>
-          row.label?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          row.value?.toLowerCase().includes(searchTerm.toLowerCase())
-      ))
-  );
-
-  // عبارت جدید برای ترکیب چند رکوردی از public/datafiles
-  const allTextFilesRecords = [
-    ...multiFileDataRows,
-    ...folderFiles,
-  ];
-
-  // جستجو بین موارد txtهای اتوماتیک
-  const filteredAllTextFilesRecords = allTextFilesRecords.filter((rec) =>
-    rec.fileName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    rec.rows.some(
-      row =>
-        row.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        row.value.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-  );
-
-  // 2. This was missing! Add handleExport (for Export CSV/Excel)
-  const handleExport = (format: "csv" | "excel") => {
-    // We pass through to context
-    exportData(format);
-  };
-
-  // برای فایل های txt، ستون‌ها را بر اساس لیبل‌های اولین فایل ایجاد می‌کنیم
-  const allFolderLabels = Array.from(
-    new Set(
-      folderFiles
-        .flatMap((file) => file.rows.map((row) => row.label))
-        // پاک کردن خالی
-        .filter(label => !!label)
-    )
-  );
-
-  // برای رکوردهای آپلودی multiFileDataRows هم لیبل‌ها را اضافه می‌کنیم (در صورت وجود)
-  const allMultiLabels = Array.from(
-    new Set(
-      multiFileDataRows
-        .flatMap((file) => file.rows.map((row) => row.label))
-        .filter(label => !!label)
-    )
-  );
-
-  // ترکیب تمام لیبل ها
-  const allCustomLabels = Array.from(new Set([...allFolderLabels, ...allMultiLabels]));
-
-  // صورت‌بندی رکورد txt به صورت ارائه شده (ID=filename بدون .txt)
-  function customTxtFileToRow(file: { fileName: string, rows: { label: string, value: string }[] }) {
+  // The main structure for TXT file rows in DB table
+  function txtFileToDbRow(file: { fileName: string, rows: { label: string; value: string }[] }) {
     const rowObj: Record<string, string> = {};
     file.rows.forEach(row => {
       rowObj[row.label] = row.value;
@@ -308,39 +107,59 @@ export default function Database() {
       id: file.fileName.replace(/\.txt$/i, ""),
       fileName: file.fileName,
       rowObj,
-      isTxtRecord: true,
       rawRows: file.rows,
+      isTxtRecord: true,
     };
   }
 
-  // تبدیل تمام فایل های پوشه و آپلودی به رکورد
-  const folderFileLinkRecords = folderFiles.map(customTxtFileToRow);
-  const multiFileLinkRecords = multiFileDataRows.map(customTxtFileToRow);
+  // File sources, mapped to same structure
+  const folderFileLinkRecords = folderFiles.map(txtFileToDbRow);
+  const multiFileLinkRecords = multiFileDataRows.map(txtFileToDbRow);
 
-  // رکوردهای لینک واقعی
+  // App link records: fill 'isTxtRecord: false', and optional fields undefined
   const appLinkRecords = links.map(link => ({
     ...link,
-    rawRows: null,
     isTxtRecord: false,
+    fileName: undefined,
+    rowObj: undefined,
+    rawRows: null,
     pageTitle: (pages.find(p => p.id === link.pageId)?.title) || "-",
     device: "N/A",
     platform: "N/A",
     status: link.visits > 0 ? "Active" : "Inactive"
   }));
 
-  // ترکیب همه رکوردها
+  // Compose ALL records together
   const combinedLinks = [
     ...appLinkRecords,
     ...multiFileLinkRecords,
     ...folderFileLinkRecords,
   ];
 
-  // حالا فقط بر پایه جستجو، این جدول را فیلتر می کنیم
+  // Collect all unique TXT labels for table heading
+  const allTxtLabels = Array.from(
+    new Set(
+      [
+        ...folderFiles,
+        ...multiFileDataRows,
+      ].flatMap(file => file.rows.map(row => row.label)).filter(label => !!label)
+    )
+  );
+
+  // Filter links for deleted txts and search term
   const filteredLinks = combinedLinks.filter(link => {
+    // Deleted txts
+    if (link.isTxtRecord && deletedTxtIds.includes(link.id)) {
+      return false;
+    }
+    // TXT filter
     if (link.isTxtRecord) {
-      // TXT file: جستجو بین فیلدها و آی‌دی و نام فایل
-      if (link.id && link.id.toLowerCase().includes(searchTerm.toLowerCase())) return true;
-      if (link.fileName && link.fileName.toLowerCase().includes(searchTerm.toLowerCase())) return true;
+      if (
+        link.id && link.id.toLowerCase().includes(searchTerm.toLowerCase())
+      ) return true;
+      if (
+        link.fileName && link.fileName.toLowerCase().includes(searchTerm.toLowerCase())
+      ) return true;
       if (
         link.rawRows &&
         link.rawRows.some(
@@ -348,10 +167,10 @@ export default function Database() {
             row.label?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             row.value?.toLowerCase().includes(searchTerm.toLowerCase())
         )
-      ) { return true; }
+      ) return true;
       return false;
     }
-    // عادی (لینک‌های برنامه)
+    // App-link filter
     return (
       (link.id && link.id.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (link.fullLink && link.fullLink.toLowerCase().includes(searchTerm.toLowerCase())) ||
@@ -361,18 +180,12 @@ export default function Database() {
     );
   });
 
-  // حذف رکورد txt (تنها از view حذف می‌شود - نمایشی)
-  const [deletedTxtIds, setDeletedTxtIds] = useState<string[]>([]);
-  const handleDeleteTxtRecord = (id: string) => {
-    confirmDelete(id, "txtfile");
-  };
-
-  // هنگام تأیید حذف txt
+  // Handler helpers
   const confirmDelete = (id: string, type: "link" | "page" | "txtfile") => {
     setItemToDelete({ id, type });
     setDeleteDialogOpen(true);
   };
-  // هنگام تأیید حذف (کمی تغییر - برای txt هم اعمال کنیم)
+
   const handleDelete = () => {
     if (!itemToDelete) return;
     if (deletePassword !== DELETE_PASSWORD) {
@@ -383,7 +196,6 @@ export default function Database() {
       });
       return;
     }
-
     if (itemToDelete.type === "page") {
       deletePage(itemToDelete.id);
       toast({
@@ -403,19 +215,54 @@ export default function Database() {
       });
       setDeletedTxtIds(ids => [...ids, itemToDelete.id]);
     }
-
     setDeleteDialogOpen(false);
     setDeletePassword("");
     setItemToDelete(null);
   };
 
-  // حذف رکوردهای txt حذف شده از جدول
-  const filteredLinksWithDeletes = filteredLinks.filter(link => {
-    if (link.isTxtRecord) {
-      return !deletedTxtIds.includes(link.id);
-    }
-    return true;
-  });
+  const handleDeletePage = (id: string) => {
+    confirmDelete(id, "page");
+  };
+  const handleDeleteLink = (id: string) => {
+    confirmDelete(id, "link");
+  };
+  const handleDeleteTxtRecord = (id: string) => {
+    confirmDelete(id, "txtfile");
+  };
+
+  // Export (unchanged)
+  const handleExport = (format: "csv" | "excel") => {
+    exportData(format);
+  };
+
+  // Download HTML for a page (unchanged)
+  const handleDownloadPage = (id: string) => {
+    const page = pages.find(p => p.id === id);
+    if (!page) return;
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${page.title}</title>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body>
+          <h1>${page.title}</h1>
+          <div>${page.content}</div>
+        </body>
+      </html>
+    `;
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `page-${id}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <DashboardLayout title="Database">
@@ -508,44 +355,44 @@ export default function Database() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="whitespace-nowrap">ID</TableHead>
-                    {/* جدول برای TXT و لینک برنامه باید کمی منعطف باشد */}
-                    {/* اگر رکورد txt است, سرتیتر بر اساس labelها */}
-                    {filteredLinksWithDeletes.some(link => link.isTxtRecord) && allCustomLabels.map(label =>
-                      <TableHead key={label} className="whitespace-nowrap">{label}</TableHead>
-                    )}
-                    {!filteredLinksWithDeletes.some(link => link.isTxtRecord) && (
-                      <>
-                        <TableHead className="whitespace-nowrap">Source</TableHead>
-                        <TableHead className="whitespace-nowrap">Full Link</TableHead>
-                        <TableHead className="whitespace-nowrap">Page Title</TableHead>
-                        <TableHead className="whitespace-nowrap">Page ID</TableHead>
-                        <TableHead className="whitespace-nowrap">Created At</TableHead>
-                        <TableHead className="whitespace-nowrap">Visits</TableHead>
-                        <TableHead className="whitespace-nowrap">Status</TableHead>
-                        <TableHead className="whitespace-nowrap">Device</TableHead>
-                        <TableHead className="whitespace-nowrap">Platform</TableHead>
-                      </>
-                    )}
+                    {/* Dynamic columns for TXT records */}
+                    {filteredLinks.some(link => link.isTxtRecord)
+                      ? allTxtLabels.map(label =>
+                          <TableHead key={label} className="whitespace-nowrap">{label}</TableHead>
+                        )
+                      : (
+                        <>
+                          <TableHead className="whitespace-nowrap">Source</TableHead>
+                          <TableHead className="whitespace-nowrap">Full Link</TableHead>
+                          <TableHead className="whitespace-nowrap">Page Title</TableHead>
+                          <TableHead className="whitespace-nowrap">Page ID</TableHead>
+                          <TableHead className="whitespace-nowrap">Created At</TableHead>
+                          <TableHead className="whitespace-nowrap">Visits</TableHead>
+                          <TableHead className="whitespace-nowrap">Status</TableHead>
+                          <TableHead className="whitespace-nowrap">Device</TableHead>
+                          <TableHead className="whitespace-nowrap">Platform</TableHead>
+                        </>
+                      )}
                     <TableHead className="whitespace-nowrap">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredLinksWithDeletes.length === 0 ? (
+                  {filteredLinks.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={allCustomLabels.length + 2} className="text-center py-8">
+                      <TableCell colSpan={allTxtLabels.length + 2} className="text-center py-8">
                         No links found
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredLinksWithDeletes.map(link => {
+                    filteredLinks.map(link => {
                       if (link.isTxtRecord) {
                         // TXT file row
                         return (
                           <TableRow key={link.id}>
                             <TableCell className="whitespace-nowrap">{link.id}</TableCell>
-                            {allCustomLabels.map(label => (
+                            {allTxtLabels.map(label => (
                               <TableCell key={label} className="whitespace-nowrap">
-                                {link.rowObj[label] || ""}
+                                {link.rowObj ? link.rowObj[label] || "" : ""}
                               </TableCell>
                             ))}
                             <TableCell className="whitespace-nowrap">
