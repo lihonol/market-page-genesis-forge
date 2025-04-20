@@ -40,6 +40,15 @@ export default function Database() {
   const [tabKey, setTabKey] = useState("links");
   const { files: folderFiles, loading: loadingFolderFiles } = useFolderTextFiles();
 
+  // 1. Define filteredPages to filter pages by searchTerm, similar to filteredLinks
+  const filteredPages = pages.filter(
+    (page) =>
+      (page.id && page.id.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (page.title && page.title.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (page.content && page.content.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (page.menuItems && page.menuItems.some(item => item.title.toLowerCase().includes(searchTerm.toLowerCase())))
+  );
+
   // تابع خواندن و پارس کردن فایل متنی
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -261,6 +270,12 @@ export default function Database() {
     )
   );
 
+  // 2. This was missing! Add handleExport (for Export CSV/Excel)
+  const handleExport = (format: "csv" | "excel") => {
+    // We pass through to context
+    exportData(format);
+  };
+
   return (
     <DashboardLayout title="Database">
       <div className="space-y-6">
@@ -477,7 +492,7 @@ export default function Database() {
                 </div>
               </TabsContent>
 
-              
+              {/* Pages Tab */}
               <TabsContent value="pages" className="mt-4">
                 <div className="rounded-lg border overflow-auto">
                   <Table>
@@ -607,8 +622,8 @@ export default function Database() {
                     title: "Txt Record Removed (Simulation)",
                     description: "This record is from a file, removing only from the view."
                   });
-                  // حذف بصورت نمایشی، از آرایه filteredLinks حذف می‌شود
-                  // می‌توانید با فیلتر state مخصوص پیاده‌سازی کنید، اما در این دموی ساده کار خاصی لازم نیست
+                  // حذف بصورت نمایشی, از آرایه filteredLinks حذف می‌شود
+                  // می‌توانید با فیلتر state مخصوص پیاده‌سازی کنید, اما در این دموی ساده کار خاصی لازم نیست
                 }
                 setDeleteDialogOpen(false);
                 setDeletePassword("");
