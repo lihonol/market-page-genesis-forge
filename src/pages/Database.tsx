@@ -97,8 +97,34 @@ export default function Database() {
     });
   };
 
-  // The main structure for TXT file rows in DB table
-  function txtFileToDbRow(file: { fileName: string, rows: { label: string; value: string }[] }) {
+  // Types for discriminated union:
+  type TxtDbRow = {
+    id: string;
+    fileName: string;
+    rowObj: Record<string, string>;
+    rawRows: { label: string; value: string }[];
+    isTxtRecord: true;
+  };
+  type AppLinkDbRow = {
+    isTxtRecord: false;
+    id: string;
+    fullLink: string;
+    pageTitle: string;
+    pageId: string;
+    createdAt: string;
+    visits: number;
+    status: string;
+    device: string;
+    platform: string;
+    // Filler for uniformity
+    fileName?: undefined;
+    rowObj?: undefined;
+    rawRows?: undefined;
+  };
+  type UnifiedDbRow = TxtDbRow | AppLinkDbRow;
+
+  // Helpers
+  function txtFileToDbRow(file: { fileName: string, rows: { label: string; value: string }[] }): TxtDbRow {
     const rowObj: Record<string, string> = {};
     file.rows.forEach(row => {
       rowObj[row.label] = row.value;
@@ -112,17 +138,22 @@ export default function Database() {
     };
   }
 
-  // File sources, mapped to same structure
-  const folderFileLinkRecords = folderFiles.map(txtFileToDbRow);
-  const multiFileLinkRecords = multiFileDataRows.map(txtFileToDbRow);
+  function isAppLinkDbRow(obj: UnifiedDbRow): obj is AppLinkDbRow {
+    return obj.isTxtRecord === false;
+  }
 
-  // App link records: fill 'isTxtRecord: false', and optional fields undefined
-  const appLinkRecords = links.map(link => ({
+  function isTxtDbRow(obj: UnifiedDbRow): obj is TxtDbRow {
+    return obj.isTxtRecord === true;
+  }
+
+  // File sources, mapped to same structure
+  const folderFileLinkRecords: TxtDbRow[] = folderFiles.map(txtFileToDbRow);
+  const multiFileLinkRecords: TxtDbRow[] = multiFileDataRows.map(txtFileToDbRow);
+
+  // App link records
+  const appLinkRecords: AppLinkDbRow[] = links.map(link => ({
     ...link,
     isTxtRecord: false,
-    fileName: undefined,
-    rowObj: undefined,
-    rawRows: null,
     pageTitle: (pages.find(p => p.id === link.pageId)?.title) || "-",
     device: "N/A",
     platform: "N/A",
@@ -130,14 +161,14 @@ export default function Database() {
   }));
 
   // Compose ALL records together
-  const combinedLinks = [
+  const combinedLinks: UnifiedDbRow[] = [
     ...appLinkRecords,
     ...multiFileLinkRecords,
     ...folderFileLinkRecords,
   ];
 
   // Collect all unique TXT labels for table heading
-  const allTxtLabels = Array.from(
+  const allTxtLabels: string[] = Array.from(
     new Set(
       [
         ...folderFiles,
@@ -147,19 +178,12 @@ export default function Database() {
   );
 
   // Filter links for deleted txts and search term
-  const filteredLinks = combinedLinks.filter(link => {
-    // Deleted txts
-    if (link.isTxtRecord && deletedTxtIds.includes(link.id)) {
-      return false;
-    }
-    // TXT filter
-    if (link.isTxtRecord) {
-      if (
-        link.id && link.id.toLowerCase().includes(searchTerm.toLowerCase())
-      ) return true;
-      if (
-        link.fileName && link.fileName.toLowerCase().includes(searchTerm.toLowerCase())
-      ) return true;
+  const filteredLinks: UnifiedDbRow[] = combinedLinks.filter(link => {
+    // Handle TXT record filtering
+    if (isTxtDbRow(link)) {
+      if (deletedTxtIds.includes(link.id)) return false;
+      if (link.id && link.id.toLowerCase().includes(searchTerm.toLowerCase())) return true;
+      if (link.fileName && link.fileName.toLowerCase().includes(searchTerm.toLowerCase())) return true;
       if (
         link.rawRows &&
         link.rawRows.some(
@@ -167,17 +191,21 @@ export default function Database() {
             row.label?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             row.value?.toLowerCase().includes(searchTerm.toLowerCase())
         )
-      ) return true;
+      )
+        return true;
       return false;
     }
-    // App-link filter
-    return (
-      (link.id && link.id.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (link.fullLink && link.fullLink.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (link.pageTitle && link.pageTitle.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (link.platform && link.platform.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (link.device && link.device.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
+    // Handle app link filtering
+    if (isAppLinkDbRow(link)) {
+      return (
+        (link.id && link.id.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (link.fullLink && link.fullLink.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (link.pageTitle && link.pageTitle.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (link.platform && link.platform.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (link.device && link.device.toLowerCase().includes(searchTerm.toLowerCase()))
+      );
+    }
+    return false;
   });
 
   // Handler helpers
@@ -264,6 +292,7 @@ export default function Database() {
     URL.revokeObjectURL(url);
   };
 
+  // Now rendering -- focus on dynamic columns and their data
   return (
     <DashboardLayout title="Database">
       <div className="space-y-6">
@@ -355,8 +384,8 @@ export default function Database() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="whitespace-nowrap">ID</TableHead>
-                    {/* Dynamic columns for TXT records */}
-                    {filteredLinks.some(link => link.isTxtRecord)
+                    {/* Show TXT columns if any TXT records in result, else normal columns */}
+                    {filteredLinks.some(isTxtDbRow)
                       ? allTxtLabels.map(label =>
                           <TableHead key={label} className="whitespace-nowrap">{label}</TableHead>
                         )
@@ -372,59 +401,60 @@ export default function Database() {
                           <TableHead className="whitespace-nowrap">Device</TableHead>
                           <TableHead className="whitespace-nowrap">Platform</TableHead>
                         </>
-                      )}
-                    <TableHead className="whitespace-nowrap">Actions</TableHead>
+                    )}
+                  <TableHead className="whitespace-nowrap">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredLinks.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={allTxtLabels.length + 2} className="text-center py-8">
+                      No links found
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredLinks.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={allTxtLabels.length + 2} className="text-center py-8">
-                        No links found
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredLinks.map(link => {
-                      if (link.isTxtRecord) {
-                        // TXT file row
-                        return (
-                          <TableRow key={link.id}>
-                            <TableCell className="whitespace-nowrap">{link.id}</TableCell>
-                            {allTxtLabels.map(label => (
-                              <TableCell key={label} className="whitespace-nowrap">
-                                {link.rowObj ? link.rowObj[label] || "" : ""}
-                              </TableCell>
-                            ))}
-                            <TableCell className="whitespace-nowrap">
-                              <div className="flex gap-2">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    alert(
-                                      link.rawRows
-                                        .map((row: any) => `${row.label}: ${row.value}`)
-                                        .join("\n")
-                                    );
-                                  }}
-                                  title="Show Raw Data"
-                                >
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleDeleteTxtRecord(link.id)}
-                                  title="Delete"
-                                >
-                                  <Trash2 className="h-4 w-4 text-destructive" />
-                                </Button>
-                              </div>
+                ) : (
+                  filteredLinks.map(link => {
+                    if (isTxtDbRow(link)) {
+                      // TXT file row
+                      return (
+                        <TableRow key={link.id}>
+                          <TableCell className="whitespace-nowrap">{link.id}</TableCell>
+                          {allTxtLabels.map(label => (
+                            <TableCell key={label} className="whitespace-nowrap">
+                              {link.rowObj ? link.rowObj[label] || "" : ""}
                             </TableCell>
-                          </TableRow>
-                        );
-                      }
-                      // برنامه اصلی
+                          ))}
+                          <TableCell className="whitespace-nowrap">
+                            <div className="flex gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  alert(
+                                    link.rawRows
+                                      .map((row: any) => `${row.label}: ${row.value}`)
+                                      .join("\n")
+                                  );
+                                }}
+                                title="Show Raw Data"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteTxtRecord(link.id)}
+                                title="Delete"
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    }
+                    // App links row
+                    if (isAppLinkDbRow(link)) {
                       const shortLink = link.fullLink?.split("/").pop() || "";
                       return (
                         <TableRow key={link.id}>
@@ -470,14 +500,16 @@ export default function Database() {
                           </TableCell>
                         </TableRow>
                       );
-                    })
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+                    }
+
+                    return null;
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
       
       {/* Password confirmation dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
