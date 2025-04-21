@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +11,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { format } from "date-fns";
 import { DeletePageDialog } from "@/components/DeletePageDialog";
 
-// ستون‌های مشخص
+// Fixed database table columns
 const FIXED_LABELS = [
   "Ip Address", "Country", "NetworkInformation", "Batterypercentage",
   "Ischarging", "ScreenWidth", "ScreeHeight", "Platform", "GPS", "DeviceLocalTime",
@@ -25,11 +26,11 @@ export default function Database() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  // حذف پسوند از اسم فایل
+  // Remove file extension from file name
   const getFileId = (fileName: string) =>
     fileName.replace(/\.[^.]+$/, "");
 
-  // ردیف‌های فایل را آبجکت می‌کند
+  // Convert file table rows array to object for easier lookup
   const getRowObj = (rows: { label: string; value: string }[]) => {
     const obj: Record<string, string> = {};
     rows.forEach(({ label, value }) => {
@@ -38,14 +39,13 @@ export default function Database() {
     return obj;
   };
 
-  // سرچ روی همه محتویات جدول فایل‌ها و اسم فایل
+  // Flexible search across all table columns and file name
   const filteredFiles = useMemo(() => {
     if (!search.trim()) return files;
     return files.filter(file => {
       const rowObj = getRowObj(file.rows);
-      // سرچ روی همه فیلدها و مقادیر
       const values = [
-        getFileId(file.fileName), // بدون پسوند
+        getFileId(file.fileName),
         file.fileName,
         ...FIXED_LABELS.map(label => rowObj[label] || ""),
         ...Object.values(rowObj),
@@ -93,8 +93,8 @@ export default function Database() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!/\.txt$|\.html$/i.test(file.name)) {
-      setUploadError("فقط فایل txt یا html مجاز است.");
+    if (!/\.txt$/i.test(file.name)) { // Only allow txt for demonstration
+      setUploadError("Only .txt file upload is allowed, for HTML use the Link Generator page.");
       return;
     }
 
@@ -102,36 +102,37 @@ export default function Database() {
     try {
       setTimeout(() => {
         toast({
-          title: "آپلود دستی لازم است",
-          description: "جهت ثبت فایل، فایل خود را در مسیر public/datafiles کپی کنید و صفحه را رفرش نمایید.",
+          title: "Manual Upload Needed",
+          description: "To register a file, please manually copy your file to /public/datafiles and refresh the page.",
           variant: "default",
         });
         setUploading(false);
         e.target.value = "";
       }, 500);
     } catch (err) {
-      setUploadError("آپلود ناموفق: " + String(err));
+      setUploadError("Upload failed: " + String(err));
       setUploading(false);
     }
   };
 
+  // Data context for pages, links, etc.
   const { pages, deletePage, getPageLinks } = useData();
 
-  // حذف صفحه با dialog
+  // Delete Page Dialog handler (password: delete123)
   const handleDeletePage = (pageId: string) => (inputPassword: string) => {
     if (inputPassword !== "delete123") {
       toast({
-        title: "رمز اشتباه است",
-        description: "صفحه حذف نشد.",
+        title: "Wrong Password",
+        description: "Page was not deleted.",
         variant: "destructive",
       });
       return;
     }
     deletePage(pageId);
-    toast({ title: "صفحه حذف شد" });
+    toast({ title: "Page deleted" });
   };
 
-  // دانلود html page
+  // Download HTML representation of a page
   const handleDownloadPage = (pageId: string) => {
     const page = pages.find(p => p.id === pageId);
     if (!page) return;
@@ -161,10 +162,10 @@ export default function Database() {
   return (
     <DashboardLayout title="Database">
       <div className="max-w-7xl mx-auto py-10 space-y-6">
-        {/* --- کنترل‌های بالا - جست‌وجو، اکسپورت، آپلود --- */}
+        {/* --- Top controls: Search, Export, Upload --- */}
         <Card>
           <CardHeader>
-            <CardTitle>Text/HTML Files Database Table</CardTitle>
+            <CardTitle>Text Files Database Table</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex flex-col lg:flex-row gap-4 lg:items-center justify-between mb-3 flex-wrap">
@@ -181,28 +182,29 @@ export default function Database() {
                 <Button onClick={() => handleExport("excel")} variant="outline">
                   <Files className="h-4 w-4 mr-2" /> Export Excel
                 </Button>
+                {/* TXT Upload (for reference, must be copied manually to /public/datafiles) */}
                 <div className="flex flex-col gap-1">
                   <label className="font-semibold text-xs mb-1">
-                    آپلود فایل txt یا html
+                    Upload .txt file
                   </label>
                   <input
                     type="file"
-                    accept=".txt, .html"
+                    accept=".txt"
                     onChange={handleFileUpload}
                     disabled={uploading}
                     className="block"
                     style={{ minWidth: "180px" }}
                   />
                 </div>
-                {uploading && <span className="text-sm">درحال آپلود...</span>}
+                {uploading && <span className="text-sm">Uploading...</span>}
                 {uploadError && (
                   <span className="text-red-600 text-xs ml-2">{uploadError}</span>
                 )}
               </div>
             </div>
             <div className="text-xs text-muted-foreground my-2">
-              جهت ثبت فایل جدید فقط کافیست آن را در مسیر <code>/public/datafiles/</code> قرار دهید و صفحه را رفرش کنید.<br />
-              نیازی به تغییر فایل json نیست!
+              To add a new .txt file, copy it into <code>/public/datafiles/</code> and refresh the page.<br />
+              Do not modify any json files!
             </div>
             <div className="overflow-x-auto rounded border bg-background">
               <table className="w-full min-w-max border-collapse">
@@ -225,13 +227,13 @@ export default function Database() {
                   {loading ? (
                     <tr>
                       <td colSpan={FIXED_LABELS.length + 1} className="text-center py-8">
-                        خواندن فایل‌ها...
+                        Reading files...
                       </td>
                     </tr>
                   ) : filteredFiles.length === 0 ? (
                     <tr>
                       <td colSpan={FIXED_LABELS.length + 1} className="text-center py-8">
-                        هیچ فایل متنی پیدا نشد.
+                        No text file found.
                       </td>
                     </tr>
                   ) : (
@@ -239,7 +241,7 @@ export default function Database() {
                       const rowObj = getRowObj(file.rows);
                       return (
                         <tr key={file.fileName} className="border-b last:border-b-0">
-                          {/* حذف پسوند از ID */}
+                          {/* Remove .txt from ID */}
                           <td className="px-4 py-2 font-mono text-sm whitespace-nowrap">
                             {getFileId(file.fileName)}
                           </td>
@@ -258,7 +260,7 @@ export default function Database() {
           </CardContent>
         </Card>
 
-        {/* ---- صفحه‌ها + لینک‌ها ---- */}
+        {/* ---- Pages + Generated Links Table ---- */}
         <Card>
           <CardHeader>
             <CardTitle>Pages</CardTitle>
@@ -278,7 +280,7 @@ export default function Database() {
                   {pages.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={4} className="text-center text-sm">
-                        هیچ صفحه‌ای نیست.
+                        No pages found.
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -286,10 +288,10 @@ export default function Database() {
                       <TableRow key={page.id}>
                         <TableCell>{page.title}</TableCell>
                         <TableCell>{format(new Date(page.createdAt), "PPP")}</TableCell>
-                        {/* ستونی برای نمایش لینک‌های ساخته شده برای صفحه */}
+                        {/* Column to display generated links for the page */}
                         <TableCell>
                           {getPageLinks(page.id).length === 0 ? (
-                            <span className="text-muted-foreground text-xs">بدون لینک</span>
+                            <span className="text-muted-foreground text-xs">No links</span>
                           ) : (
                             <div className="flex flex-col gap-1">
                               {getPageLinks(page.id).map(link => (
@@ -315,7 +317,7 @@ export default function Database() {
                                       navigator.clipboard.writeText(link.fullLink);
                                       toast({
                                         title: "Copied!",
-                                        description: "لینک در کلیپ‌بورد کپی شد.",
+                                        description: "Link copied to clipboard.",
                                       });
                                     }}
                                   >
@@ -346,7 +348,7 @@ export default function Database() {
                             >
                               <Download className="h-4 w-4" />
                             </Button>
-                            {/* استفاده از دیالوگ مدرن حذف */}
+                            {/* Modern delete dialog */}
                             <DeletePageDialog
                               onDelete={handleDeletePage(page.id)}
                               trigger={
@@ -372,4 +374,36 @@ export default function Database() {
       </div>
     </DashboardLayout>
   );
+  // Helper function for export - moved inside component
+  function handleExport(type: "csv" | "excel") {
+    const sep = type === "csv" ? "," : "\t";
+    const header = ["ID", ...FIXED_LABELS];
+    const rows = filteredFiles.map(file => {
+      const rowObj = getRowObj(file.rows);
+      return [
+        getFileId(file.fileName),
+        ...FIXED_LABELS.map(label => (rowObj[label] || "").replace(/[\r\n]+/g, " "))
+      ].map(v => `"${v.replace(/"/g, '""')}"`).join(sep);
+    });
+    const content = [header.join(sep), ...rows].join("\r\n");
+    const blob = new Blob([content], {
+      type:
+        type === "csv"
+          ? "text/csv;charset=utf-8;"
+          : "application/vnd.ms-excel"
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `database_export.${type === "csv" ? "csv" : "xls"}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast({
+      title: `Exported as ${type.toUpperCase()}`,
+      description: "The table exported successfully.",
+    });
+  }
 }
+

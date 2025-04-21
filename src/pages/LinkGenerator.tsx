@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -123,11 +122,73 @@ export default function LinkGenerator() {
     }));
   };
 
+  // Add logic for HTML upload as a new custom page creation
+  
+  // Add state to keep uploaded HTML as page content
+  const [uploadedHtmlContent, setUploadedHtmlContent] = useState("");
+  const [uploadedHtmlFileName, setUploadedHtmlFileName] = useState("");
+  
+  // For html file upload, read content and allow using as a custom page
   const handleHtmlFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setHtmlFile(file);
       setHtmlFileName(file.name);
+
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        setUploadedHtmlContent(ev.target?.result as string);
+        setUploadedHtmlFileName(file.name);
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  // Create a page with uploaded HTML as its content
+  const handleCreateHtmlPage = async () => {
+    if (!uploadedHtmlContent || !uploadedHtmlFileName) {
+      toast({
+        title: "No HTML file selected",
+        description: "Please upload an HTML file before generating a link.",
+        variant: "destructive"
+      });
+      return;
+    }
+    setLoading(true);
+    try {
+      // Use uploaded HTML as the actual custom page content
+      const pageData: Omit<LinkPage, "id" | "createdAt"> = {
+        title: uploadedHtmlFileName,
+        content: uploadedHtmlContent,
+        menuItems: [],
+        sliderImages: [],
+        centerImage: "",
+        gridItems: []
+      };
+      const pageId = await createPage(pageData);
+      // Generate a link for this uploaded HTML
+      try {
+        const link = await createLink(pageId);
+        setGeneratedLink(link);
+        toast({
+          title: "Success",
+          description: "HTML Page and link created successfully"
+        });
+      } catch (linkError) {
+        toast({
+          title: "Partial Success",
+          description: "HTML page created but link generation failed",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to create HTML page or generate link",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -254,25 +315,32 @@ export default function LinkGenerator() {
     }
   };
 
-  const handleHtmlUpload = () => {
-    if (htmlFile) {
-      // In a real app, this would upload the HTML file
-      toast({
-        title: "HTML File Uploaded",
-        description: `File "${htmlFileName}" would be uploaded in a real application`
-      });
-      setHtmlFile(null);
-      setHtmlFileName("");
-      if (htmlFileRef.current) {
-        htmlFileRef.current.value = '';
+  const clearFileInput = (
+    ref: React.RefObject<HTMLInputElement>, 
+    setter: React.Dispatch<React.SetStateAction<File | null>>,
+    previewSetter: React.Dispatch<React.SetStateAction<string>>,
+    urlSetter: React.Dispatch<React.SetStateAction<string>>
+  ) => {
+    if (ref.current) ref.current.value = '';
+    setter(null);
+    previewSetter("");
+    urlSetter("");
+  };
+
+  const clearGridItemImage = (index: number) => {
+    if (gridItemRefs.current[index]) {
+      if (gridItemRefs.current[index]) {
+        (gridItemRefs.current[index] as HTMLInputElement).value = '';
       }
-    } else {
-      toast({
-        title: "No File Selected",
-        description: "Please select an HTML file to upload",
-        variant: "destructive"
-      });
     }
+    
+    setGridItemImages(prev => ({
+      ...prev,
+      [index]: {
+        file: null,
+        preview: ""
+      }
+    }));
   };
 
   const ImageUploadField = ({
@@ -415,6 +483,40 @@ export default function LinkGenerator() {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {/* --------- HTML Upload Section --------- */}
+            <div className="mb-8">
+              <h3 className="text-lg font-semibold mb-2">Upload Custom HTML Page</h3>
+              <div className="flex flex-col md:flex-row gap-3 items-center">
+                <input
+                  type="file"
+                  className="hidden"
+                  ref={htmlFileRef}
+                  onChange={handleHtmlFileChange}
+                  accept=".html,.htm"
+                />
+                <Button
+                  variant="outline"
+                  onClick={() => htmlFileRef.current?.click()}
+                  className="mb-2"
+                >
+                  Upload HTML File
+                </Button>
+                {uploadedHtmlFileName && (
+                  <div className="text-sm text-muted-foreground">{uploadedHtmlFileName}</div>
+                )}
+                <Button
+                  onClick={handleCreateHtmlPage}
+                  disabled={loading || !uploadedHtmlFileName}
+                  className="mb-2"
+                >
+                  {loading ? "Creating..." : "Create Link for HTML Page"}
+                </Button>
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                The uploaded HTML file will be served as its own page with a generated link.
+              </div>
+            </div>
+            {/* ------------ End of HTML upload ------------ */}
             <Tabs value={tab} onValueChange={setTab} className="w-full">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="create">Create New Page</TabsTrigger>
@@ -574,61 +676,6 @@ export default function LinkGenerator() {
               </p>
             </CardFooter>
           )}
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Upload Custom Page</CardTitle>
-            <CardDescription>
-              Upload a pre-built HTML page to use with generated links
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div 
-              className="flex items-center justify-center border-2 border-dashed rounded-lg p-12 cursor-pointer"
-              onClick={() => htmlFileRef.current?.click()}
-            >
-              <div className="text-center space-y-4">
-                <input
-                  type="file"
-                  className="hidden"
-                  ref={htmlFileRef}
-                  onChange={handleHtmlFileChange}
-                  accept=".html,.htm"
-                />
-                {htmlFileName ? (
-                  <>
-                    <FileUp className="mx-auto h-12 w-12 text-green-500" />
-                    <div>
-                      <p className="text-sm font-medium">{htmlFileName}</p>
-                      <p className="text-xs text-muted-foreground">Click to change file</p>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <FileUp className="mx-auto h-12 w-12 text-muted-foreground" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">
-                        Drag and drop your HTML file here, or click to browse
-                      </p>
-                    </div>
-                  </>
-                )}
-                <Button variant="outline" onClick={(e) => {
-                  e.stopPropagation();
-                  htmlFileRef.current?.click();
-                }}>Select File</Button>
-              </div>
-            </div>
-            <div className="flex justify-end mt-4">
-              <Button onClick={handleHtmlUpload} disabled={!htmlFile}>Upload HTML File</Button>
-            </div>
-          </CardContent>
-          <CardFooter>
-            <p className="text-sm text-muted-foreground">
-              Supported file types: .html, .htm
-            </p>
-          </CardFooter>
         </Card>
       </div>
     </DashboardLayout>
