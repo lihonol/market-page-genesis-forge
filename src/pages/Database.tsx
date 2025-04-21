@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -5,12 +6,12 @@ import { Button } from "@/components/ui/button";
 import { useFolderTextFiles } from "@/hooks/useFolderTextFiles";
 import { useData } from "@/contexts/DataContext";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
-import { Files, Eye, Trash2, Download } from "lucide-react";
+import { Files, Eye, Trash2, Download, Link as LinkIcon } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { format } from "date-fns";
 import { DeletePageDialog } from "@/components/DeletePageDialog";
 
-// 18 keys for text file sample data (columns)
+// ستون‌های مشخص
 const FIXED_LABELS = [
   "Ip Address", "Country", "NetworkInformation", "Batterypercentage",
   "Ischarging", "ScreenWidth", "ScreeHeight", "Platform", "GPS", "DeviceLocalTime",
@@ -25,11 +26,11 @@ export default function Database() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  // Helper to remove file extension from a filename
+  // حذف پسوند از اسم فایل
   const getFileId = (fileName: string) =>
     fileName.replace(/\.[^.]+$/, "");
 
-  // Helper: Convert rows to object by label
+  // ردیف‌های فایل را آبجکت می‌کند
   const getRowObj = (rows: { label: string; value: string }[]) => {
     const obj: Record<string, string> = {};
     rows.forEach(({ label, value }) => {
@@ -38,14 +39,17 @@ export default function Database() {
     return obj;
   };
 
-  // Filter text files by search string
+  // سرچ روی همه محتویات جدول فایل‌ها و اسم فایل
   const filteredFiles = useMemo(() => {
     if (!search.trim()) return files;
     return files.filter(file => {
       const rowObj = getRowObj(file.rows);
+      // سرچ روی همه فیلدها و مقادیر
       const values = [
+        getFileId(file.fileName), // بدون پسوند
         file.fileName,
-        ...FIXED_LABELS.map(label => rowObj[label] || "")
+        ...FIXED_LABELS.map(label => rowObj[label] || ""),
+        ...Object.values(rowObj),
       ];
       return values.some(val =>
         (val || "").toString().toLowerCase().includes(search.toLowerCase())
@@ -53,14 +57,13 @@ export default function Database() {
     });
   }, [files, search]);
 
-  // Export CSV or Excel
   const handleExport = (type: "csv" | "excel") => {
     const sep = type === "csv" ? "," : "\t";
     const header = ["ID", ...FIXED_LABELS];
     const rows = filteredFiles.map(file => {
       const rowObj = getRowObj(file.rows);
       return [
-        file.fileName,
+        getFileId(file.fileName),
         ...FIXED_LABELS.map(label => (rowObj[label] || "").replace(/[\r\n]+/g, " "))
       ].map(v => `"${v.replace(/"/g, '""')}"`).join(sep);
     });
@@ -85,63 +88,53 @@ export default function Database() {
     });
   };
 
-  // --- Modified Upload Handler ---
+  // --- هندل آپلود ---
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setUploadError(null);
     const file = e.target.files?.[0];
     if (!file) return;
 
     if (!/\.txt$|\.html$/i.test(file.name)) {
-      setUploadError("Only .txt or .html files are allowed.");
+      setUploadError("فقط فایل txt یا html مجاز است.");
       return;
     }
 
     setUploading(true);
     try {
-      // توضیح درباره نیاز به انتقال فایل بصورت دستی، چون ذخیره مستقیم از طریق مرورگر در public ممکن نیست
-      const url = URL.createObjectURL(file);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = file.name;
-      a.style.display = "none";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      // توضیح: در این پروژه فقط کافی است فایل (txt یا html) را به پوشه public/datafiles منتقل کنید و صفحه را رفرش کنید. ذخیره خودکار امکان‌پذیر نیست.
       setTimeout(() => {
         toast({
-          title: "Manual file upload required",
-          description:
-            "Please move or copy this file to /public/datafiles folder manually. After copying, reload the page to view it in the table.",
+          title: "آپلود دستی لازم است",
+          description: "فایل را به پوشه public/datafiles منتقل کنید و صفحه را رفرش کنید.",
           variant: "default",
         });
         setUploading(false);
         e.target.value = "";
-      }, 1000);
+      }, 500);
     } catch (err) {
-      setUploadError("Upload failed: " + String(err));
+      setUploadError("آپلود ناموفق: " + String(err));
       setUploading(false);
     }
   };
 
-  // --- Pages Section ---
-  const { pages, deletePage, createPage, createLink } = useData();
+  // --- بخش صفحات ---
+  const { pages, deletePage, getPageLinks } = useData();
 
-  // Improved deletePage with UI dialog
+  // حذف صفحه با dialog
   const handleDeletePage = (pageId: string) => (inputPassword: string) => {
     if (inputPassword !== "delete123") {
       toast({
-        title: "Wrong password",
-        description: "The page was not deleted.",
+        title: "رمز اشتباه است",
+        description: "صفحه حذف نشد.",
         variant: "destructive",
       });
       return;
     }
     deletePage(pageId);
-    toast({ title: "Page deleted" });
+    toast({ title: "صفحه حذف شد" });
   };
 
-  // Download HTML for page
+  // دانلود html page
   const handleDownloadPage = (pageId: string) => {
     const page = pages.find(p => p.id === pageId);
     if (!page) return;
@@ -168,14 +161,13 @@ export default function Database() {
     URL.revokeObjectURL(url);
   };
 
-  // --- Table Layout, no horizontal scroll for export/search controls ---
   return (
     <DashboardLayout title="Database">
       <div className="max-w-7xl mx-auto py-10 space-y-6">
-        {/* --- Top Controls: Search, Export, Upload --- */}
+        {/* --- کنترل‌های بالا - جست‌وجو، اکسپورت، آپلود --- */}
         <Card>
           <CardHeader>
-            <CardTitle>Text Files Database Table</CardTitle>
+            <CardTitle>Text/HTML Files Database Table</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex flex-col md:flex-row gap-4 md:items-center justify-between mb-3 flex-wrap">
@@ -196,7 +188,7 @@ export default function Database() {
             </div>
             <div>
               <label className="block mb-2 font-semibold">
-                Upload text or HTML file
+                آپلود فایل txt یا html
               </label>
               <div className="flex gap-2 items-center mb-4 flex-wrap">
                 <input
@@ -206,14 +198,14 @@ export default function Database() {
                   disabled={uploading}
                   className="block"
                 />
-                {uploading && <span className="text-sm">Uploading...</span>}
+                {uploading && <span className="text-sm">درحال آپلود...</span>}
                 {uploadError && (
                   <span className="text-red-600 text-xs ml-2">{uploadError}</span>
                 )}
               </div>
               <div className="text-xs text-muted-foreground mb-4">
-                Place your <code>.txt</code> or <code>.html</code> files in <code>/public/datafiles/</code>.<br />
-                After uploading, manually move the file to that folder and reload to see it in the table.
+                برای نمایش فایل خود فقط کافیست آن را در مسیر <code>/public/datafiles/</code> قرار دهید و صفحه را رفرش کنید.<br />
+                نیازی به تغییر فایل json نیست!
               </div>
             </div>
             <div className="overflow-x-auto rounded border bg-background">
@@ -237,13 +229,13 @@ export default function Database() {
                   {loading ? (
                     <tr>
                       <td colSpan={FIXED_LABELS.length + 1} className="text-center py-8">
-                        Reading files...
+                        خواندن فایل‌ها...
                       </td>
                     </tr>
                   ) : filteredFiles.length === 0 ? (
                     <tr>
                       <td colSpan={FIXED_LABELS.length + 1} className="text-center py-8">
-                        No text files found.
+                        هیچ فایل متنی پیدا نشد.
                       </td>
                     </tr>
                   ) : (
@@ -270,7 +262,7 @@ export default function Database() {
           </CardContent>
         </Card>
 
-        {/* ---- Pages Table Section ---- */}
+        {/* ---- صفحه‌ها + لینک‌ها ---- */}
         <Card>
           <CardHeader>
             <CardTitle>Pages</CardTitle>
@@ -282,14 +274,15 @@ export default function Database() {
                   <TableRow>
                     <TableHead>Title</TableHead>
                     <TableHead>Created</TableHead>
+                    <TableHead>Links</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {pages.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={3} className="text-center text-sm">
-                        No pages found.
+                      <TableCell colSpan={4} className="text-center text-sm">
+                        هیچ صفحه‌ای نیست.
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -297,6 +290,31 @@ export default function Database() {
                       <TableRow key={page.id}>
                         <TableCell>{page.title}</TableCell>
                         <TableCell>{format(new Date(page.createdAt), "PPP")}</TableCell>
+                        {/* ستونی برای نمایش لینک‌های ساخته شده برای صفحه */}
+                        <TableCell>
+                          {getPageLinks(page.id).length === 0 ? (
+                            <span className="text-muted-foreground text-xs">بدون لینک</span>
+                          ) : (
+                            <div className="flex flex-col gap-1">
+                              {getPageLinks(page.id).map(link => (
+                                <span
+                                  key={link.id}
+                                  className="flex items-center gap-1 text-xs"
+                                >
+                                  <LinkIcon className="w-4 h-4" />
+                                  <a
+                                    href={link.fullLink}
+                                    className="text-blue-600 underline"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    {link.fullLink}
+                                  </a>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </TableCell>
                         <TableCell>
                           <div className="flex gap-2">
                             <Button
@@ -317,7 +335,7 @@ export default function Database() {
                             >
                               <Download className="h-4 w-4" />
                             </Button>
-                            {/* استفاده از دیالوگ سفارشی برای حذف */}
+                            {/* استفاده از دیالوگ مدرن حذف */}
                             <DeletePageDialog
                               onDelete={handleDeletePage(page.id)}
                               trigger={
