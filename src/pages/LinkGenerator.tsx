@@ -138,7 +138,7 @@ export default function LinkGenerator() {
         gridItems: []
       };
       const pageId = await createPage(pageData);
-      // Generate a link for this uploaded HTML
+      // IMMEDIATELY generate a link for this uploaded HTML -- FIXED
       try {
         const link = await createLink(pageId);
         setGeneratedLink(link);
@@ -164,6 +164,7 @@ export default function LinkGenerator() {
     }
   };
 
+  // DIRECT LINK GENERATION for normal custom page creation
   const handleCreatePage = async () => {
     if (!title || !content) {
       toast({
@@ -219,7 +220,7 @@ export default function LinkGenerator() {
 
       const pageId = await createPage(pageData);
       
-      // Automatically generate a link for the new page
+      // IMMEDIATELY generate a link for created page -- FIXED
       try {
         const link = await createLink(pageId);
         setGeneratedLink(link);

@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useData, LinkPage } from "@/contexts/DataContext";
@@ -37,6 +36,40 @@ export default function PagePreview() {
           <h1 className="text-2xl font-bold">Page not found</h1>
           <p className="mt-2 text-muted-foreground">The requested page could not be found</p>
         </div>
+      </div>
+    );
+  }
+
+  // Check if it's an uploaded HTML file (raw HTML)
+  const isHtmlContent = 
+    typeof page.content === "string" &&
+    (
+      page.content.toLowerCase().startsWith("<!doctype html") ||
+      page.content.toLowerCase().startsWith("<html") ||
+      page.content.trim().startsWith("<!DOCTYPE html") ||
+      page.content.trim().startsWith("<html")
+    );
+
+  if (isHtmlContent) {
+    // Display the uploaded HTML page raw, in an iframe
+    // Create a blob URL from the HTML content for iframe src
+    const blob = new Blob([page.content], { type: "text/html" });
+    const htmlUrl = URL.createObjectURL(blob);
+
+    // Clean up blob URL when component unmounts
+    useEffect(() => {
+      return () => {
+        URL.revokeObjectURL(htmlUrl);
+      }
+    }, [htmlUrl]);
+
+    return (
+      <div className="w-full h-screen bg-black">
+        <iframe
+          src={htmlUrl}
+          title={page.title}
+          style={{ width: "100vw", height: "100vh", border: "none" }}
+        />
       </div>
     );
   }
