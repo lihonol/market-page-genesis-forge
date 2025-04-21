@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -374,36 +373,4 @@ export default function Database() {
       </div>
     </DashboardLayout>
   );
-  // Helper function for export - moved inside component
-  function handleExport(type: "csv" | "excel") {
-    const sep = type === "csv" ? "," : "\t";
-    const header = ["ID", ...FIXED_LABELS];
-    const rows = filteredFiles.map(file => {
-      const rowObj = getRowObj(file.rows);
-      return [
-        getFileId(file.fileName),
-        ...FIXED_LABELS.map(label => (rowObj[label] || "").replace(/[\r\n]+/g, " "))
-      ].map(v => `"${v.replace(/"/g, '""')}"`).join(sep);
-    });
-    const content = [header.join(sep), ...rows].join("\r\n");
-    const blob = new Blob([content], {
-      type:
-        type === "csv"
-          ? "text/csv;charset=utf-8;"
-          : "application/vnd.ms-excel"
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `database_export.${type === "csv" ? "csv" : "xls"}`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    toast({
-      title: `Exported as ${type.toUpperCase()}`,
-      description: "The table exported successfully.",
-    });
-  }
 }
-

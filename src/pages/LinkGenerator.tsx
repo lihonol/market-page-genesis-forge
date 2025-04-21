@@ -39,7 +39,7 @@ export default function LinkGenerator() {
     Array.from({ length: 16 }, (_, i) => i).reduce((acc, i) => {
       acc[i] = { file: null, preview: "" };
       return acc;
-    }, {} as Record<number, { file: File | null; preview: string }>)
+    }, {} as Record<number, { file: null, preview: string }>)
   );
 
   // Refs for file inputs
@@ -92,34 +92,6 @@ export default function LinkGenerator() {
       newTitles[index] = value;
       return newTitles;
     });
-  };
-
-  const clearFileInput = (
-    ref: React.RefObject<HTMLInputElement>, 
-    setter: React.Dispatch<React.SetStateAction<File | null>>,
-    previewSetter: React.Dispatch<React.SetStateAction<string>>,
-    urlSetter: React.Dispatch<React.SetStateAction<string>>
-  ) => {
-    if (ref.current) ref.current.value = '';
-    setter(null);
-    previewSetter("");
-    urlSetter("");
-  };
-
-  const clearGridItemImage = (index: number) => {
-    if (gridItemRefs.current[index]) {
-      if (gridItemRefs.current[index]) {
-        (gridItemRefs.current[index] as HTMLInputElement).value = '';
-      }
-    }
-    
-    setGridItemImages(prev => ({
-      ...prev,
-      [index]: {
-        file: null,
-        preview: ""
-      }
-    }));
   };
 
   // Add logic for HTML upload as a new custom page creation
@@ -315,34 +287,6 @@ export default function LinkGenerator() {
     }
   };
 
-  const clearFileInput = (
-    ref: React.RefObject<HTMLInputElement>, 
-    setter: React.Dispatch<React.SetStateAction<File | null>>,
-    previewSetter: React.Dispatch<React.SetStateAction<string>>,
-    urlSetter: React.Dispatch<React.SetStateAction<string>>
-  ) => {
-    if (ref.current) ref.current.value = '';
-    setter(null);
-    previewSetter("");
-    urlSetter("");
-  };
-
-  const clearGridItemImage = (index: number) => {
-    if (gridItemRefs.current[index]) {
-      if (gridItemRefs.current[index]) {
-        (gridItemRefs.current[index] as HTMLInputElement).value = '';
-      }
-    }
-    
-    setGridItemImages(prev => ({
-      ...prev,
-      [index]: {
-        file: null,
-        preview: ""
-      }
-    }));
-  };
-
   const ImageUploadField = ({
     label,
     fileInputRef,
@@ -470,6 +414,34 @@ export default function LinkGenerator() {
         </div>
       </div>
     );
+  };
+
+  const clearFileInput = (
+    ref: React.RefObject<HTMLInputElement>, 
+    setter: React.Dispatch<React.SetStateAction<File | null>>,
+    previewSetter: React.Dispatch<React.SetStateAction<string>>,
+    urlSetter: React.Dispatch<React.SetStateAction<string>>
+  ) => {
+    if (ref.current) ref.current.value = '';
+    setter(null);
+    previewSetter("");
+    urlSetter("");
+  };
+
+  const clearGridItemImage = (index: number) => {
+    if (gridItemRefs.current[index]) {
+      if (gridItemRefs.current[index]) {
+        (gridItemRefs.current[index] as HTMLInputElement).value = '';
+      }
+    }
+    
+    setGridItemImages(prev => ({
+      ...prev,
+      [index]: {
+        file: null,
+        preview: ""
+      }
+    }));
   };
 
   return (
