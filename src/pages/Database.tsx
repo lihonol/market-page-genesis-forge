@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,26 +8,14 @@ import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@
 import { Files, Eye, Trash2, Download } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { format } from "date-fns";
+import { DeletePageDialog } from "@/components/DeletePageDialog";
 
 // 18 keys for text file sample data (columns)
 const FIXED_LABELS = [
-  "Ip Address",
-  "Country",
-  "NetworkInformation",
-  "Batterypercentage",
-  "Ischarging",
-  "ScreenWidth",
-  "ScreeHeight",
-  "Platform",
-  "GPS",
-  "DeviceLocalTime",
-  "DeviceLanguage",
-  "CookieEnabled",
-  "UserAgent",
-  "DeviceMemory",
-  "CPuThreads",
-  "Clipboard",
-  "ReferUrl"
+  "Ip Address", "Country", "NetworkInformation", "Batterypercentage",
+  "Ischarging", "ScreenWidth", "ScreeHeight", "Platform", "GPS", "DeviceLocalTime",
+  "DeviceLanguage", "CookieEnabled", "UserAgent", "DeviceMemory", "CPuThreads",
+  "Clipboard", "ReferUrl"
 ];
 
 export default function Database() {
@@ -37,6 +24,10 @@ export default function Database() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const { toast } = useToast();
+
+  // Helper to remove file extension from a filename
+  const getFileId = (fileName: string) =>
+    fileName.replace(/\.[^.]+$/, "");
 
   // Helper: Convert rows to object by label
   const getRowObj = (rows: { label: string; value: string }[]) => {
@@ -94,23 +85,20 @@ export default function Database() {
     });
   };
 
-  // File Upload Handler
+  // --- Modified Upload Handler ---
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setUploadError(null);
-
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.name.endsWith(".txt")) {
-      setUploadError("Only .txt files are allowed.");
+    if (!/\.txt$|\.html$/i.test(file.name)) {
+      setUploadError("Only .txt or .html files are allowed.");
       return;
     }
-    setUploading(true);
 
+    setUploading(true);
     try {
-      // Create a temporary url and trigger the download into /public/datafiles via the browser.
-      // In a real app, you'd POST to a backend or use Supabase Storage. Here we can only simulate.
-      // So we'll let user download to /public/datafiles/ and show a toast to help.
+      // توضیح درباره نیاز به انتقال فایل بصورت دستی، چون ذخیره مستقیم از طریق مرورگر در public ممکن نیست
       const url = URL.createObjectURL(file);
       const a = document.createElement("a");
       a.href = url;
@@ -122,11 +110,9 @@ export default function Database() {
       URL.revokeObjectURL(url);
       setTimeout(() => {
         toast({
-          title: "Finish upload manually",
-          description: (
-            "Please move or copy the uploaded file to /public/datafiles/ in your project. " +
-            "After placing it there, reload the page to see it in the table."
-          ),
+          title: "Manual file upload required",
+          description:
+            "Please move or copy this file to /public/datafiles folder manually. After copying, reload the page to view it in the table.",
           variant: "default",
         });
         setUploading(false);
@@ -139,7 +125,21 @@ export default function Database() {
   };
 
   // --- Pages Section ---
-  const { pages, deletePage } = useData();
+  const { pages, deletePage, createPage, createLink } = useData();
+
+  // Improved deletePage with UI dialog
+  const handleDeletePage = (pageId: string) => (inputPassword: string) => {
+    if (inputPassword !== "delete123") {
+      toast({
+        title: "Wrong password",
+        description: "The page was not deleted.",
+        variant: "destructive",
+      });
+      return;
+    }
+    deletePage(pageId);
+    toast({ title: "Page deleted" });
+  };
 
   // Download HTML for page
   const handleDownloadPage = (pageId: string) => {
@@ -168,41 +168,24 @@ export default function Database() {
     URL.revokeObjectURL(url);
   };
 
-  // Require password before deleting page
-  const handleDeletePage = (pageId: string) => {
-    const password = window.prompt("Enter password to delete this page:");
-    if (!password) return;
-    // For demo, the password is hardcoded as 'delete123'
-    if (password !== "delete123") {
-      toast({
-        title: "Wrong password",
-        description: "The page was not deleted.",
-        variant: "destructive",
-      });
-      return;
-    }
-    deletePage(pageId);
-    toast({ title: "Page deleted" });
-  };
-
-  // Wrapped with dashboard layout:
+  // --- Table Layout, no horizontal scroll for export/search controls ---
   return (
     <DashboardLayout title="Database">
       <div className="max-w-7xl mx-auto py-10 space-y-6">
-        {/* ---- Text Files Database Table Section ---- */}
+        {/* --- Top Controls: Search, Export, Upload --- */}
         <Card>
           <CardHeader>
             <CardTitle>Text Files Database Table</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-col md:flex-row gap-4 md:items-center justify-between mb-3">
+            <div className="flex flex-col md:flex-row gap-4 md:items-center justify-between mb-3 flex-wrap">
               <input
                 className="border rounded-lg px-4 py-2 w-full md:w-96"
                 placeholder="Search record..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
               />
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <Button onClick={() => handleExport("csv")} variant="outline">
                   <Files className="h-4 w-4 mr-2" /> Export CSV
                 </Button>
@@ -213,12 +196,12 @@ export default function Database() {
             </div>
             <div>
               <label className="block mb-2 font-semibold">
-                Upload text file
+                Upload text or HTML file
               </label>
-              <div className="flex gap-2 items-center mb-4">
+              <div className="flex gap-2 items-center mb-4 flex-wrap">
                 <input
                   type="file"
-                  accept=".txt"
+                  accept=".txt, .html"
                   onChange={handleFileUpload}
                   disabled={uploading}
                   className="block"
@@ -229,11 +212,11 @@ export default function Database() {
                 )}
               </div>
               <div className="text-xs text-muted-foreground mb-4">
-                Place your <code>.txt</code> files in <code>/public/datafiles/</code>.<br />
-                After uploading, move the file to that folder and reload to see it in the table.
+                Place your <code>.txt</code> or <code>.html</code> files in <code>/public/datafiles/</code>.<br />
+                After uploading, manually move the file to that folder and reload to see it in the table.
               </div>
             </div>
-            <div className="overflow-auto rounded border bg-background">
+            <div className="overflow-x-auto rounded border bg-background">
               <table className="w-full min-w-max border-collapse">
                 <thead className="bg-muted">
                   <tr>
@@ -268,7 +251,10 @@ export default function Database() {
                       const rowObj = getRowObj(file.rows);
                       return (
                         <tr key={file.fileName} className="border-b last:border-b-0">
-                          <td className="px-4 py-2 font-mono text-sm whitespace-nowrap">{file.fileName}</td>
+                          {/* حذف پسوند از ID */}
+                          <td className="px-4 py-2 font-mono text-sm whitespace-nowrap">
+                            {getFileId(file.fileName)}
+                          </td>
                           {FIXED_LABELS.map(label => (
                             <td key={label} className="px-4 py-2 text-xs whitespace-pre-wrap break-all">
                               {rowObj[label] || ""}
@@ -290,7 +276,7 @@ export default function Database() {
             <CardTitle>Pages</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="overflow-auto rounded border bg-background">
+            <div className="overflow-x-auto rounded border bg-background">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -331,14 +317,19 @@ export default function Database() {
                             >
                               <Download className="h-4 w-4" />
                             </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDeletePage(page.id)}
-                              title="Delete"
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
+                            {/* استفاده از دیالوگ سفارشی برای حذف */}
+                            <DeletePageDialog
+                              onDelete={handleDeletePage(page.id)}
+                              trigger={
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  title="Delete"
+                                >
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              }
+                            />
                           </div>
                         </TableCell>
                       </TableRow>
