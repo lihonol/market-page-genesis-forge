@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -101,11 +100,10 @@ export default function Database() {
 
     setUploading(true);
     try {
-      // توضیح: در این پروژه فقط کافی است فایل (txt یا html) را به پوشه public/datafiles منتقل کنید و صفحه را رفرش کنید. ذخیره خودکار امکان‌پذیر نیست.
       setTimeout(() => {
         toast({
           title: "آپلود دستی لازم است",
-          description: "فایل را به پوشه public/datafiles منتقل کنید و صفحه را رفرش کنید.",
+          description: "جهت ثبت فایل، فایل خود را در مسیر public/datafiles کپی کنید و صفحه را رفرش نمایید.",
           variant: "default",
         });
         setUploading(false);
@@ -117,7 +115,6 @@ export default function Database() {
     }
   };
 
-  // --- بخش صفحات ---
   const { pages, deletePage, getPageLinks } = useData();
 
   // حذف صفحه با dialog
@@ -170,43 +167,42 @@ export default function Database() {
             <CardTitle>Text/HTML Files Database Table</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-col md:flex-row gap-4 md:items-center justify-between mb-3 flex-wrap">
+            <div className="flex flex-col lg:flex-row gap-4 lg:items-center justify-between mb-3 flex-wrap">
               <input
-                className="border rounded-lg px-4 py-2 w-full md:w-96"
+                className="border rounded-lg px-4 py-2 w-full lg:w-96"
                 placeholder="Search record..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
               />
-              <div className="flex gap-2 flex-wrap">
+              <div className="flex flex-wrap gap-2 items-center">
                 <Button onClick={() => handleExport("csv")} variant="outline">
                   <Files className="h-4 w-4 mr-2" /> Export CSV
                 </Button>
                 <Button onClick={() => handleExport("excel")} variant="outline">
                   <Files className="h-4 w-4 mr-2" /> Export Excel
                 </Button>
-              </div>
-            </div>
-            <div>
-              <label className="block mb-2 font-semibold">
-                آپلود فایل txt یا html
-              </label>
-              <div className="flex gap-2 items-center mb-4 flex-wrap">
-                <input
-                  type="file"
-                  accept=".txt, .html"
-                  onChange={handleFileUpload}
-                  disabled={uploading}
-                  className="block"
-                />
+                <div className="flex flex-col gap-1">
+                  <label className="font-semibold text-xs mb-1">
+                    آپلود فایل txt یا html
+                  </label>
+                  <input
+                    type="file"
+                    accept=".txt, .html"
+                    onChange={handleFileUpload}
+                    disabled={uploading}
+                    className="block"
+                    style={{ minWidth: "180px" }}
+                  />
+                </div>
                 {uploading && <span className="text-sm">درحال آپلود...</span>}
                 {uploadError && (
                   <span className="text-red-600 text-xs ml-2">{uploadError}</span>
                 )}
               </div>
-              <div className="text-xs text-muted-foreground mb-4">
-                برای نمایش فایل خود فقط کافیست آن را در مسیر <code>/public/datafiles/</code> قرار دهید و صفحه را رفرش کنید.<br />
-                نیازی به تغییر فایل json نیست!
-              </div>
+            </div>
+            <div className="text-xs text-muted-foreground my-2">
+              جهت ثبت فایل جدید فقط کافیست آن را در مسیر <code>/public/datafiles/</code> قرار دهید و صفحه را رفرش کنید.<br />
+              نیازی به تغییر فایل json نیست!
             </div>
             <div className="overflow-x-auto rounded border bg-background">
               <table className="w-full min-w-max border-collapse">
@@ -307,9 +303,24 @@ export default function Database() {
                                     className="text-blue-600 underline"
                                     target="_blank"
                                     rel="noopener noreferrer"
+                                    title="Open link"
                                   >
                                     {link.fullLink}
                                   </a>
+                                  <Button
+                                    variant="secondary"
+                                    size="icon"
+                                    className="p-1"
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(link.fullLink);
+                                      toast({
+                                        title: "Copied!",
+                                        description: "لینک در کلیپ‌بورد کپی شد.",
+                                      });
+                                    }}
+                                  >
+                                    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15V5a2 2 0 012-2h10"></path></svg>
+                                  </Button>
                                 </span>
                               ))}
                             </div>

@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Input } from "@/components/ui/input";
@@ -8,17 +7,36 @@ import { useData, GeneratedLink, LinkPage } from "@/contexts/DataContext";
 import { Search as SearchIcon, Eye, Calendar, Link as LinkIcon } from "lucide-react";
 import { format } from "date-fns";
 
+import { useFolderTextFiles } from "@/hooks/useFolderTextFiles";
+
 export default function Search() {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<(LinkPage | GeneratedLink)[]>([]);
+  const [results, setResults] = useState<(LinkPage | GeneratedLink | { fileName: string, rows: { label: string, value: string }[] })[]>([]);
   const [searched, setSearched] = useState(false);
   const { searchDatabase } = useData();
+  const { files } = useFolderTextFiles();
 
   const handleSearch = () => {
     if (!query.trim()) return;
-    
+
+    // سرچ در دیتابیس قبلی:
     const searchResults = searchDatabase(query);
-    setResults(searchResults);
+
+    // سرچ روی فایل‌ها (دیتابیس فایل‌ها):
+    const fileResults = files.filter(file => {
+      const content = [
+        file.fileName,
+        ...file.rows.map(r => r.label),
+        ...file.rows.map(r => r.value),
+        file.rows.map(r => `${r.label}: ${r.value}`).join(" ")
+      ]
+        .join(" ")
+        .toLowerCase();
+      return content.includes(query.trim().toLowerCase());
+    });
+
+    // ادغام نتایج (بدون تکرار)
+    setResults([...searchResults, ...fileResults]);
     setSearched(true);
   };
 
@@ -29,8 +47,18 @@ export default function Search() {
   };
 
   // Helper function to determine if result is a LinkPage
-  const isLinkPage = (result: LinkPage | GeneratedLink): result is LinkPage => {
-    return (result as LinkPage).title !== undefined;
+  const isLinkPage = (result: any): result is LinkPage => {
+    return result && (result as LinkPage).title !== undefined;
+  };
+
+  // Helper function to determine if result is a file record (database)
+  const isFileResult = (result: any): result is { fileName: string, rows: { label: string, value: string }[] } => {
+    return result && result.fileName && Array.isArray(result.rows);
+  };
+
+  // Helper function to determine if result is a GeneratedLink
+  const isGeneratedLink = (result: any): result is GeneratedLink => {
+    return result && result.fullLink !== undefined;
   };
 
   return (
@@ -65,7 +93,7 @@ export default function Search() {
             <h2 className="text-xl font-bold">
               Search Results {results.length > 0 && `(${results.length})`}
             </h2>
-            
+
             {results.length === 0 ? (
               <Card>
                 <CardContent className="py-8">
@@ -76,8 +104,8 @@ export default function Search() {
               </Card>
             ) : (
               <div className="space-y-4">
-                {results.map((result) => (
-                  <Card key={result.id} className="overflow-hidden">
+                {results.map((result, idx) => (
+                  <Card key={isGeneratedLink(result) ? result.id : isLinkPage(result) ? result.id : isFileResult(result) ? result.fileName : idx} className="overflow-hidden">
                     <CardContent className="p-6">
                       {isLinkPage(result) ? (
                         <div className="space-y-4">
@@ -144,7 +172,7 @@ export default function Search() {
                             </div>
                           </div>
                         </div>
-                      ) : (
+                      ) : isGeneratedLink(result) ? (
                         <div className="space-y-4">
                           <div className="flex justify-between items-center">
                             <div>
@@ -189,7 +217,26 @@ export default function Search() {
                             </div>
                           </div>
                         </div>
-                      )}
+                      ) : isFileResult(result) ? (
+                        <div className="space-y-4">
+                          <div>
+                            <h3 className="text-lg font-semibold">Database File</h3>
+                            <p className="text-sm text-muted-foreground">{result.fileName}</p>
+                          </div>
+                          <div className="overflow-x-auto rounded border bg-muted p-2">
+                            <table className="min-w-max w-full text-xs">
+                              <tbody>
+                                {result.rows.map((row, rIdx) => (
+                                  <tr key={rIdx}>
+                                    <td className="font-semibold px-2 py-1">{row.label}</td>
+                                    <td className="px-2 py-1">{row.value}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      ) : null}
                     </CardContent>
                   </Card>
                 ))}
