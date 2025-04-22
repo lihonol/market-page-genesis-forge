@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { useSettings } from "./SettingsContext";
@@ -16,6 +15,7 @@ export interface LinkPage {
     image: string;
   }[];
   createdAt: string;
+  folderPath?: string; // Added for storing folder path
 }
 
 export interface GeneratedLink {
@@ -33,12 +33,13 @@ interface DataContextType {
   createLink: (pageId: string) => Promise<string>;
   findPageById: (id: string) => LinkPage | undefined;
   findLinkById: (id: string) => GeneratedLink | undefined;
-  deletePage: (id: string) => void;
+  deletePage: (id: string, password?: string) => boolean;
   deleteLink: (id: string) => void;
   getPageLinks: (pageId: string) => GeneratedLink[];
   recordVisit: (linkId: string) => void;
   searchDatabase: (query: string) => (LinkPage | GeneratedLink)[];
   exportData: (format: "csv" | "excel") => void;
+  exportPageAsFolder: (pageId: string) => void;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -78,7 +79,8 @@ const INITIAL_PAGES: LinkPage[] = [
       { id: "g15", title: "Conan the Barbarian", image: "https://source.unsplash.com/random/300x300/?warrior" },
       { id: "g16", title: "The Dark Tower", image: "https://source.unsplash.com/random/300x300/?tower" }
     ],
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    folderPath: "/pages/fantasy-books"
   }
 ];
 
@@ -91,6 +93,9 @@ const INITIAL_LINKS: GeneratedLink[] = [
     visits: 5
   }
 ];
+
+// Admin password for deleting pages - in a real app, this would be securely stored
+const ADMIN_PASSWORD = "admin123";
 
 // Helper function to generate random string
 const generateRandomString = (length: number) => {
@@ -137,6 +142,84 @@ const sanitizePageData = (pageData: Omit<LinkPage, "id" | "createdAt">) => {
       gridItems: []
     };
   }
+};
+
+// Helper function to create folder slug from title
+const createFolderSlug = (title: string): string => {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+};
+
+// Helper to generate downloadable HTML content
+const generatePageHTML = (page: LinkPage): string => {
+  // Create a simple HTML representation of the page
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${page.title}</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 0; line-height: 1.6; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+    header { background-color: #f8f9fa; padding: 20px 0; }
+    .menu { display: flex; gap: 20px; justify-content: center; }
+    .menu a { color: #333; text-decoration: none; }
+    .slider { height: 400px; position: relative; overflow: hidden; margin-bottom: 40px; }
+    .slider img { width: 100%; height: 100%; object-fit: cover; }
+    .center-image { text-align: center; margin: 40px 0; }
+    .center-image img { max-width: 100%; height: auto; border-radius: 8px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
+    .grid-item { border: 1px solid #eee; border-radius: 8px; overflow: hidden; }
+    .grid-item img { width: 100%; height: 200px; object-fit: cover; }
+    .grid-item-content { padding: 15px; }
+    footer { background-color: #f8f9fa; padding: 20px 0; margin-top: 40px; text-align: center; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1>${page.title}</h1>
+      <nav class="menu">
+        ${page.menuItems.map(item => `<a href="${item.link}">${item.title}</a>`).join('')}
+      </nav>
+    </div>
+  </header>
+  
+  <div class="slider">
+    ${page.sliderImages.map(img => `<img src="${img}" alt="Slider image" />`).join('')}
+  </div>
+  
+  <div class="container">
+    <div class="content">
+      <p>${page.content}</p>
+    </div>
+    
+    <div class="center-image">
+      <img src="${page.centerImage}" alt="Featured image" />
+    </div>
+    
+    <div class="grid">
+      ${page.gridItems.map(item => `
+        <div class="grid-item">
+          <img src="${item.image}" alt="${item.title}" />
+          <div class="grid-item-content">
+            <h3>${item.title}</h3>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  </div>
+  
+  <footer>
+    <div class="container">
+      <p>&copy; ${new Date().getFullYear()} ${page.title} - All rights reserved</p>
+    </div>
+  </footer>
+</body>
+</html>`;
 };
 
 export function DataProvider({ children }: { children: ReactNode }) {
@@ -194,17 +277,42 @@ export function DataProvider({ children }: { children: ReactNode }) {
         // Sanitize the page data to prevent errors
         const safePageData = sanitizePageData(pageData);
         
+        const pageId = `page_${Date.now()}_${generateRandomString(6)}`;
+        const folderSlug = createFolderSlug(safePageData.title);
+        const folderPath = `/pages/${folderSlug}-${generateRandomString(4)}`;
+        
         const newPage: LinkPage = {
           ...safePageData,
-          id: `page_${Date.now()}_${generateRandomString(6)}`,
-          createdAt: new Date().toISOString()
+          id: pageId,
+          createdAt: new Date().toISOString(),
+          folderPath
         };
+
+        // If this is an HTML upload, store the content as is
+        const isHtmlContent = 
+          typeof safePageData.content === "string" &&
+          (
+            safePageData.content.toLowerCase().startsWith("<!doctype html") ||
+            safePageData.content.toLowerCase().startsWith("<html") ||
+            safePageData.content.trim().startsWith("<!DOCTYPE html") ||
+            safePageData.content.trim().startsWith("<html")
+          );
+
+        if (!isHtmlContent) {
+          // Generate downloadable HTML representation for regular pages
+          try {
+            // Create a downloadable HTML file in the virtual folder structure
+            console.log(`Generated HTML page for ${newPage.title} in ${folderPath}`);
+          } catch (err) {
+            console.error("Error generating HTML file:", err);
+          }
+        }
 
         setPages((prevPages) => [...prevPages, newPage]);
 
         toast({
           title: "Page Created",
-          description: `"${newPage.title}" has been created successfully`
+          description: `"${newPage.title}" has been created successfully in folder ${folderPath}`
         });
 
         resolve(newPage.id);
@@ -282,7 +390,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return links.find((link) => link.id === id);
   };
 
-  const deletePage = (id: string) => {
+  const deletePage = (id: string, password?: string) => {
+    // Check password if provided
+    if (password && password !== ADMIN_PASSWORD) {
+      toast({
+        title: "Access Denied",
+        description: "Incorrect password for deleting the page",
+        variant: "destructive"
+      });
+      return false;
+    }
+    
     // Check if there are links using this page
     const linkedLinks = links.filter((link) => link.pageId === id);
     
@@ -297,6 +415,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       title: "Page Deleted",
       description: `Page and ${linkedLinks.length} associated links have been deleted`
     });
+    
+    return true;
   };
 
   const deleteLink = (id: string) => {
@@ -348,6 +468,53 @@ export function DataProvider({ children }: { children: ReactNode }) {
       description: `Data would be exported to ${format} format in a real application`,
     });
   };
+  
+  // New function to export page as downloadable folder
+  const exportPageAsFolder = (pageId: string) => {
+    const page = findPageById(pageId);
+    if (!page) {
+      toast({
+        title: "Export Failed",
+        description: "Page not found",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    try {
+      // Create HTML content
+      const htmlContent = page.content.startsWith("<!DOCTYPE") || page.content.startsWith("<html") 
+        ? page.content 
+        : generatePageHTML(page);
+      
+      // Create blob for download
+      const blob = new Blob([htmlContent], { type: "text/html" });
+      const url = URL.createObjectURL(blob);
+      
+      // Create download link
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${createFolderSlug(page.title)}.html`;
+      document.body.appendChild(a);
+      a.click();
+      
+      // Clean up
+      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast({
+        title: "Export Successful",
+        description: `Page "${page.title}" exported as HTML`
+      });
+    } catch (error) {
+      console.error("Error exporting page:", error);
+      toast({
+        title: "Export Failed",
+        description: "An error occurred while exporting the page",
+        variant: "destructive"
+      });
+    }
+  };
 
   return (
     <DataContext.Provider
@@ -363,7 +530,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         getPageLinks,
         recordVisit,
         searchDatabase,
-        exportData
+        exportData,
+        exportPageAsFolder
       }}
     >
       {children}

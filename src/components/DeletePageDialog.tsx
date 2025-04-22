@@ -11,6 +11,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface DeletePageDialogProps {
   onDelete: (password: string) => void;
@@ -40,10 +41,12 @@ export function DeletePageDialog({ onDelete, trigger }: DeletePageDialogProps) {
         <DialogHeader>
           <DialogTitle>Confirm Page Deletion</DialogTitle>
           <DialogDescription>
-            Please enter password to permanently delete this page.
+            Please enter the admin password to permanently delete this page.
+            <br />
+            <small className="text-blue-500">(Hint: The default password is "admin123")</small>
           </DialogDescription>
         </DialogHeader>
-        <input
+        <Input
           className="w-full border rounded px-3 py-2 mt-2"
           type="password"
           value={password}
