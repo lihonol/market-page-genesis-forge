@@ -16,6 +16,8 @@ export interface LinkPage {
   }[];
   createdAt: string;
   folderPath?: string; // Added for storing folder path
+  isFileBasedPage?: boolean; // Added to identify file-based pages
+  filePath?: string; // Added to store file path for file-based pages
 }
 
 export interface GeneratedLink {
@@ -30,6 +32,7 @@ interface DataContextType {
   pages: LinkPage[];
   links: GeneratedLink[];
   createPage: (page: Omit<LinkPage, "id" | "createdAt">) => Promise<string>;
+  createFileBasedPage: (fileName: string, filePath: string) => Promise<string>;
   createLink: (pageId: string) => Promise<string>;
   findPageById: (id: string) => LinkPage | undefined;
   findLinkById: (id: string) => GeneratedLink | undefined;
@@ -328,6 +331,46 @@ export function DataProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  // New function to create a page from a file in the pages folder
+  const createFileBasedPage = async (fileName: string, filePath: string) => {
+    return new Promise<string>((resolve, reject) => {
+      try {
+        const pageId = `file_page_${Date.now()}_${generateRandomString(6)}`;
+        const title = fileName.replace(/\.[^.]+$/, ""); // Remove file extension
+        
+        const newPage: LinkPage = {
+          id: pageId,
+          title,
+          content: "", // Content is loaded from file, not stored in the page
+          menuItems: [],
+          sliderImages: [],
+          centerImage: "",
+          gridItems: [],
+          createdAt: new Date().toISOString(),
+          isFileBasedPage: true,
+          filePath
+        };
+        
+        setPages((prevPages) => [...prevPages, newPage]);
+        
+        toast({
+          title: "File Page Created",
+          description: `Page from file "${fileName}" has been created successfully`
+        });
+        
+        resolve(pageId);
+      } catch (error) {
+        console.error("Error creating file-based page:", error);
+        toast({
+          title: "Error Creating File Page",
+          description: "An unexpected error occurred while creating the page",
+          variant: "destructive"
+        });
+        reject(error);
+      }
+    });
+  };
+
   const createLink = async (pageId: string) => {
     return new Promise<string>((resolve, reject) => {
       try {
@@ -390,6 +433,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return links.find((link) => link.id === id);
   };
 
+  // Update deletePage to handle file-based pages
   const deletePage = (id: string, password?: string) => {
     // Check password if provided
     if (password && password !== ADMIN_PASSWORD) {
@@ -407,6 +451,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (linkedLinks.length > 0) {
       // Also delete associated links
       setLinks((prevLinks) => prevLinks.filter((link) => link.pageId !== id));
+    }
+
+    // If it's a file-based page, show a message that the file must be deleted manually
+    const page = pages.find(p => p.id === id);
+    if (page?.isFileBasedPage) {
+      toast({
+        title: "Note",
+        description: `Page reference removed, but to delete the file completely, manually remove it from ${page.filePath}`,
+        duration: 5000
+      });
     }
 
     setPages((prevPages) => prevPages.filter((page) => page.id !== id));
@@ -522,6 +576,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         pages,
         links,
         createPage,
+        createFileBasedPage,
         createLink,
         findPageById,
         findLinkById,

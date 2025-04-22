@@ -10,9 +10,11 @@ import { useData, LinkPage } from "@/contexts/DataContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { Plus, Link2, FileUp, RefreshCw, Copy, X, Upload } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { FilePageSelector } from "@/components/FilePageSelector";
 
 export default function LinkGenerator() {
+  // ... keep existing code (state definitions)
+  
   const [tab, setTab] = useState("create");
   const [generatedLink, setGeneratedLink] = useState("");
   const [title, setTitle] = useState("");
@@ -157,6 +159,27 @@ export default function LinkGenerator() {
       toast({
         title: "Error",
         description: "Failed to create HTML page or generate link",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handler for file-based page selection
+  const handleFilePageSelected = async (pageId: string) => {
+    setLoading(true);
+    try {
+      const link = await createLink(pageId);
+      setGeneratedLink(link);
+      toast({
+        title: "Success",
+        description: "Link for file-based page created successfully"
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to generate link for the file-based page",
         variant: "destructive"
       });
     } finally {
@@ -456,45 +479,69 @@ export default function LinkGenerator() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {/* --------- HTML Upload Section --------- */}
-            <div className="mb-8">
-              <h3 className="text-lg font-semibold mb-2">Upload Custom HTML Page</h3>
-              <div className="flex flex-col md:flex-row gap-3 items-center">
-                <input
-                  type="file"
-                  className="hidden"
-                  ref={htmlFileRef}
-                  onChange={handleHtmlFileChange}
-                  accept=".html,.htm"
-                />
-                <Button
-                  variant="outline"
-                  onClick={() => htmlFileRef.current?.click()}
-                  className="mb-2"
-                >
-                  Upload HTML File
-                </Button>
-                {uploadedHtmlFileName && (
-                  <div className="text-sm text-muted-foreground">{uploadedHtmlFileName}</div>
-                )}
-                <Button
-                  onClick={handleCreateHtmlPage}
-                  disabled={loading || !uploadedHtmlFileName}
-                  className="mb-2"
-                >
-                  {loading ? "Creating..." : "Create Link for HTML Page"}
-                </Button>
-              </div>
-              <div className="text-xs text-muted-foreground mt-1">
-                The uploaded HTML file will be served as its own page with a generated link.
-              </div>
-            </div>
-            {/* ------------ End of HTML upload ------------ */}
             <Tabs value={tab} onValueChange={setTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="create">Create New Page</TabsTrigger>
+                <TabsTrigger value="file">Use File Page</TabsTrigger>
                 <TabsTrigger value="existing">Use Existing Page</TabsTrigger>
               </TabsList>
+              
+              {/* File-based Page Tab */}
+              <TabsContent value="file" className="space-y-4 mt-4">
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold mb-2">Use Page from /datafiles/pages</h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Select an HTML file from the pages folder to create a link for it.
+                  </p>
+                  <FilePageSelector onPageSelected={handleFilePageSelected} />
+                </div>
+              
+                <div className="border-t pt-6">
+                  <h3 className="text-lg font-semibold mb-2">Upload Custom HTML Page</h3>
+                  <div className="flex flex-col md:flex-row gap-3 items-center">
+                    <input
+                      type="file"
+                      className="hidden"
+                      ref={htmlFileRef}
+                      onChange={handleHtmlFileChange}
+                      accept=".html,.htm"
+                    />
+                    <Button
+                      variant="outline"
+                      onClick={() => htmlFileRef.current?.click()}
+                      className="mb-2"
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Upload HTML File
+                    </Button>
+                    {uploadedHtmlFileName && (
+                      <div className="text-sm text-muted-foreground">{uploadedHtmlFileName}</div>
+                    )}
+                    <Button
+                      onClick={handleCreateHtmlPage}
+                      disabled={loading || !uploadedHtmlFileName}
+                      className="mb-2"
+                    >
+                      {loading ? (
+                        <>
+                          <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                          Creating...
+                        </>
+                      ) : (
+                        <>
+                          <FileUp className="mr-2 h-4 w-4" />
+                          Create Link for HTML
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    The uploaded HTML file will be served as its own page with a generated link.
+                  </div>
+                </div>
+              </TabsContent>
+
+              {/* Create Page Tab */}
               <TabsContent value="create" className="space-y-4 mt-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-4">
@@ -587,6 +634,7 @@ export default function LinkGenerator() {
                 </Button>
               </TabsContent>
 
+              {/* Existing Page Tab */}
               <TabsContent value="existing" className="space-y-4 mt-4">
                 <div className="space-y-2">
                   <Label htmlFor="existingPage">Select Existing Page</Label>
@@ -631,6 +679,7 @@ export default function LinkGenerator() {
               </TabsContent>
             </Tabs>
           </CardContent>
+          
           {generatedLink && (
             <CardFooter className="flex flex-col space-y-4">
               <div className="w-full p-4 bg-muted rounded-lg">
@@ -639,7 +688,13 @@ export default function LinkGenerator() {
                     <h4 className="text-sm font-semibold">Generated Link</h4>
                     <p className="text-md break-all">{generatedLink}</p>
                   </div>
-                  <Button variant="outline" size="sm" onClick={copyToClipboard}>
+                  <Button variant="outline" size="sm" onClick={() => {
+                    navigator.clipboard.writeText(generatedLink);
+                    toast({
+                      title: "Copied!",
+                      description: "Link copied to clipboard."
+                    });
+                  }}>
                     <Copy className="h-4 w-4" />
                   </Button>
                 </div>

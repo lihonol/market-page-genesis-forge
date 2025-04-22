@@ -1,217 +1,151 @@
-import React, { useEffect, useState } from "react";
+
+import React from "react";
 import { useParams } from "react-router-dom";
-import { useData, LinkPage } from "@/contexts/DataContext";
-import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { ThemeToggle } from "@/components/ThemeToggle";
-import { cn } from "@/lib/utils";
+import { useData } from "@/contexts/DataContext";
 
 export default function PagePreview() {
-  const { pageId } = useParams<{ pageId: string }>();
-  const { findPageById } = useData();
-  const [page, setPage] = useState<LinkPage | null>(null);
-  const [activeSlide, setActiveSlide] = useState(0);
+  const { id } = useParams<{ id: string }>();
+  const { findPageById, recordVisit, findLinkById } = useData();
+  
+  // Check if this is a direct page view or a link view
+  const isLinkView = window.location.pathname.includes("/l/");
+  const linkId = isLinkView ? id : undefined;
 
-  useEffect(() => {
-    if (pageId) {
-      const foundPage = findPageById(pageId);
-      if (foundPage) {
-        setPage(foundPage);
-      }
+  // If it's a link view, record the visit and find the page ID
+  let pageId = id;
+  if (isLinkView && linkId) {
+    const link = findLinkById(linkId);
+    if (link) {
+      recordVisit(linkId);
+      pageId = link.pageId;
     }
-  }, [pageId, findPageById]);
+  }
 
-  const nextSlide = () => {
-    setActiveSlide((prev) => (prev + 1) % (page?.sliderImages.length || 1));
-  };
+  const page = pageId ? findPageById(pageId) : null;
 
-  const prevSlide = () => {
-    setActiveSlide((prev) => (prev - 1 + (page?.sliderImages.length || 1)) % (page?.sliderImages.length || 1));
-  };
-
-  if (!page) {
+  // Check if this is a file-based page
+  if (page?.isFileBasedPage && page.filePath) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold">Page not found</h1>
-          <p className="mt-2 text-muted-foreground">The requested page could not be found</p>
+      <iframe
+        src={page.filePath}
+        style={{
+          width: "100%",
+          height: "100vh",
+          border: "none",
+          overflow: "auto"
+        }}
+        title={page.title}
+      />
+    );
+  }
+
+  // For HTML content pages, render them directly in an iframe
+  if (page?.content && (
+    page.content.toLowerCase().startsWith("<!doctype html") ||
+    page.content.toLowerCase().startsWith("<html")
+  )) {
+    return (
+      <iframe
+        srcDoc={page.content}
+        style={{
+          width: "100%",
+          height: "100vh",
+          border: "none",
+          overflow: "auto"
+        }}
+        title={page.title}
+      />
+    );
+  }
+
+  // For normal pages
+  if (page) {
+    return (
+      <div className="min-h-screen">
+        {/* Header with menu */}
+        <header className="bg-gray-100 shadow">
+          <div className="container mx-auto px-4 py-6">
+            <h1 className="text-3xl font-bold">{page.title}</h1>
+            <nav className="mt-4">
+              <ul className="flex gap-4">
+                {page.menuItems.map((item, idx) => (
+                  <li key={idx}>
+                    <a href={item.link} className="text-blue-600 hover:underline">
+                      {item.title}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          </div>
+        </header>
+
+        {/* Slider */}
+        <div className="relative h-64 sm:h-96 overflow-hidden">
+          {page.sliderImages.length > 0 ? (
+            <img
+              src={page.sliderImages[0]}
+              alt="Slider"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+              <p className="text-gray-500">No slider image available</p>
+            </div>
+          )}
         </div>
+
+        {/* Content area */}
+        <div className="container mx-auto px-4 py-8">
+          {/* Page content */}
+          <div className="prose mx-auto">
+            <p className="text-lg">{page.content}</p>
+          </div>
+
+          {/* Center image */}
+          {page.centerImage && (
+            <div className="mt-8 text-center">
+              <img
+                src={page.centerImage}
+                alt="Featured"
+                className="mx-auto max-h-96"
+              />
+            </div>
+          )}
+
+          {/* Grid items */}
+          <div className="mt-12 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+            {page.gridItems.map((item) => (
+              <div key={item.id} className="bg-white shadow rounded-lg overflow-hidden">
+                <img
+                  src={item.image}
+                  alt={item.title}
+                  className="w-full h-40 object-cover"
+                />
+                <div className="p-4">
+                  <h3 className="font-medium">{item.title}</h3>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <footer className="bg-gray-800 text-white py-8 mt-12">
+          <div className="container mx-auto px-4 text-center">
+            <p>&copy; {new Date().getFullYear()} {page.title}</p>
+          </div>
+        </footer>
       </div>
     );
-  }
-
-  // Check if it's an uploaded HTML file (raw HTML)
-  const isHtmlContent = 
-    typeof page.content === "string" &&
-    (
-      page.content.toLowerCase().startsWith("<!doctype html") ||
-      page.content.toLowerCase().startsWith("<html") ||
-      page.content.trim().startsWith("<!DOCTYPE html") ||
-      page.content.trim().startsWith("<html")
-    );
-
-  if (isHtmlContent) {
-    // Display the uploaded HTML page raw, in an iframe
-    // Create a blob URL from the HTML content for iframe src
-    const blob = new Blob([page.content], { type: "text/html" });
-    const htmlUrl = URL.createObjectURL(blob);
-
-    // Clean up blob URL when component unmounts
-    useEffect(() => {
-      return () => {
-        URL.revokeObjectURL(htmlUrl);
-      }
-    }, [htmlUrl]);
-
-    return (
-      <div className="w-full h-screen bg-black">
-        <iframe
-          src={htmlUrl}
-          title={page.title}
-          style={{ width: "100vw", height: "100vh", border: "none" }}
-        />
-      </div>
-    );
-  }
-
-  // Split grid items into rows of 4
-  const gridRows = [];
-  for (let i = 0; i < page.gridItems.length; i += 4) {
-    gridRows.push(page.gridItems.slice(i, i + 4));
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Theme Toggle */}
-      <div className="absolute top-4 right-4 z-50">
-        <ThemeToggle />
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-center">
+        <h1 className="text-2xl font-bold text-red-600">Page not found</h1>
+        <p className="mt-2">The requested page does not exist.</p>
       </div>
-      
-      {/* Menu Bar */}
-      <header className="bg-card shadow">
-        <div className="container mx-auto px-4 py-4">
-          <nav className="flex items-center justify-between">
-            <div className="text-xl font-semibold">{page.title}</div>
-            <ul className="hidden md:flex space-x-6">
-              {page.menuItems.map((item, index) => (
-                <li key={index}>
-                  <a href={item.link} className="hover:text-primary transition-colors">
-                    {item.title}
-                  </a>
-                </li>
-              ))}
-            </ul>
-            <button className="md:hidden">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="3" y1="12" x2="21" y2="12"></line>
-                <line x1="3" y1="6" x2="21" y2="6"></line>
-                <line x1="3" y1="18" x2="21" y2="18"></line>
-              </svg>
-            </button>
-          </nav>
-        </div>
-      </header>
-      
-      {/* Image Slider */}
-      <div className="relative overflow-hidden h-[400px]">
-        {page.sliderImages.map((image, index) => (
-          <div
-            key={index}
-            className={cn(
-              "absolute inset-0 transition-opacity duration-500",
-              index === activeSlide ? "opacity-100" : "opacity-0"
-            )}
-          >
-            <img
-              src={image}
-              alt={`Slide ${index + 1}`}
-              className="w-full h-full object-cover"
-            />
-          </div>
-        ))}
-        <div className="absolute inset-0 bg-black/30 flex items-center justify-between p-4">
-          <Button variant="outline" size="icon" onClick={prevSlide} className="rounded-full bg-background/80 hover:bg-background">
-            <ChevronLeft className="h-6 w-6" />
-          </Button>
-          <Button variant="outline" size="icon" onClick={nextSlide} className="rounded-full bg-background/80 hover:bg-background">
-            <ChevronRight className="h-6 w-6" />
-          </Button>
-        </div>
-        <div className="absolute bottom-4 left-0 right-0 flex justify-center space-x-2">
-          {page.sliderImages.map((_, index) => (
-            <button
-              key={index}
-              className={cn(
-                "w-3 h-3 rounded-full",
-                index === activeSlide ? "bg-primary" : "bg-white/50"
-              )}
-              onClick={() => setActiveSlide(index)}
-            />
-          ))}
-        </div>
-      </div>
-      
-      {/* Main Content */}
-      <div className="container mx-auto px-4 py-8">
-        <div className="text-center mb-12">
-          <h1 className="text-3xl md:text-4xl font-bold mb-4">{page.title}</h1>
-          <p className="text-lg text-muted-foreground max-w-3xl mx-auto">{page.content}</p>
-        </div>
-        
-        {/* Center Image */}
-        <div className="flex justify-center mb-12">
-          <img
-            src={page.centerImage}
-            alt="Featured"
-            className="rounded-lg shadow-lg max-w-full md:max-w-[600px] h-auto"
-          />
-        </div>
-        
-        {/* Grid Items */}
-        <div className="space-y-8">
-          <h2 className="text-2xl font-semibold text-center mb-6">Featured Products</h2>
-          
-          {gridRows.map((row, rowIndex) => (
-            <div key={rowIndex} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {row.map((item) => (
-                <div key={item.id} className="bg-card rounded-lg overflow-hidden shadow-md transition-transform hover:scale-105">
-                  <img
-                    src={item.image}
-                    alt={item.title}
-                    className="w-full h-48 object-cover"
-                  />
-                  <div className="p-4">
-                    <h3 className="font-semibold truncate">{item.title}</h3>
-                    <div className="mt-4 flex justify-between items-center">
-                      <span className="text-sm">$99.00</span>
-                      <Button size="sm" variant="outline">View Details</Button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-      </div>
-      
-      {/* Footer */}
-      <footer className="bg-card mt-12 py-8">
-        <div className="container mx-auto px-4">
-          <div className="flex flex-col md:flex-row justify-between items-center">
-            <div className="mb-4 md:mb-0">
-              <h3 className="text-lg font-semibold">{page.title}</h3>
-              <p className="text-sm text-muted-foreground mt-1">© 2025 All rights reserved</p>
-            </div>
-            <div className="flex space-x-4">
-              {page.menuItems.map((item, index) => (
-                <a key={index} href={item.link} className="hover:text-primary transition-colors">
-                  {item.title}
-                </a>
-              ))}
-            </div>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }
