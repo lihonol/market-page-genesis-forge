@@ -117,9 +117,9 @@ export default function Database() {
   // Data context for pages, links, etc.
   const { pages, deletePage, getPageLinks } = useData();
 
-  // Delete Page Dialog handler (password: delete123)
+  // Delete Page Dialog handler (using admin123 as the password)
   const handleDeletePage = (pageId: string) => (inputPassword: string) => {
-    if (inputPassword !== "delete123") {
+    if (inputPassword !== "admin123") {
       toast({
         title: "Wrong Password",
         description: "Page was not deleted.",
