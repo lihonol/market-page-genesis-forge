@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useFolderTextFiles } from "@/hooks/useFolderTextFiles";
 import { useData } from "@/contexts/DataContext";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
-import { Files, Eye, Trash2, Download, Link as LinkIcon } from "lucide-react";
+import { Eye, Download, Trash2, Link as LinkIcon } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { format } from "date-fns";
 import { DeletePageDialog } from "@/components/DeletePageDialog";
@@ -78,6 +78,18 @@ export default function Database() {
     });
   }, [pageFiles, search]);
 
+  // Data context for pages, links, etc.
+  const { pages, deletePage, getPageLinks, exportPageAsFolder, findPageById } = useData();
+
+  // Filtered pages based on search term
+  const filteredPages = useMemo(() => {
+    if (!search.trim()) return pages;
+    return pages.filter(page => 
+      page.title.toLowerCase().includes(search.toLowerCase()) ||
+      page.id.toLowerCase().includes(search.toLowerCase())
+    );
+  }, [pages, search]);
+
   const handleExport = (type: "csv" | "excel") => {
     const sep = type === "csv" ? "," : "\t";
     const header = ["ID", ...FIXED_LABELS];
@@ -109,7 +121,7 @@ export default function Database() {
     });
   };
 
-  // --- هندل آپلود ---
+  // --- File upload handler ---
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, folderType: "txt" | "page") => {
     setUploadError(null);
     const file = e.target.files?.[0];
@@ -138,62 +150,31 @@ export default function Database() {
     }
   };
 
-  // Data context for pages, links, etc.
-  const { pages, deletePage, getPageLinks } = useData();
-
-  // Delete Page Dialog handler (using admin123 as the password)
+  // Delete Page Dialog handler
   const handleDeletePage = (pageId: string) => (inputPassword: string) => {
-    if (inputPassword !== "admin123") {
-      toast({
-        title: "Wrong Password",
-        description: "Page was not deleted.",
-        variant: "destructive",
-      });
-      return;
+    const result = deletePage(pageId, inputPassword);
+    if (result) {
+      toast({ title: "Page deleted successfully" });
     }
-    deletePage(pageId);
-    toast({ title: "Page deleted" });
   };
 
-  // Download HTML representation of a page
+  // Download page as HTML
   const handleDownloadPage = (pageId: string) => {
-    const page = pages.find(p => p.id === pageId);
-    if (!page) return;
-    const html = `<!DOCTYPE html>
-<html>
-<head>
-  <title>${page.title}</title>
-  <meta charset="utf-8">
-</head>
-<body>
-  <h1>${page.title}</h1>
-  <div>${page.content}</div>
-</body>
-</html>
-`;
-    const blob = new Blob([html], { type: "text/html" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `page-${pageId}.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    exportPageAsFolder(pageId);
   };
 
   return (
     <DashboardLayout title="Database">
       <div className="max-w-7xl mx-auto py-10 space-y-6">
         {/* --- Top controls: Search, Export, Upload --- */}
-        <Card>
+        <Card className="border-gradient-to-r from-indigo-400 to-cyan-400">
           <CardHeader>
             <CardTitle>Files Database</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex flex-col lg:flex-row gap-4 lg:items-center justify-between mb-3 flex-wrap">
               <input
-                className="border rounded-lg px-4 py-2 w-full lg:w-96"
+                className="border rounded-lg px-4 py-2 w-full lg:w-96 bg-background"
                 placeholder="Search record..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
@@ -203,17 +184,16 @@ export default function Database() {
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsList className="mb-4">
                 <TabsTrigger value="txt">Text Files</TabsTrigger>
-                <TabsTrigger value="page">HTML Pages</TabsTrigger>
                 <TabsTrigger value="app-pages">App Pages</TabsTrigger>
               </TabsList>
               
               <TabsContent value="txt" className="space-y-4">
                 <div className="flex flex-wrap gap-2 items-center">
                   <Button onClick={() => handleExport("csv")} variant="outline">
-                    <Files className="h-4 w-4 mr-2" /> Export CSV
+                    <Download className="h-4 w-4 mr-2" /> Export CSV
                   </Button>
                   <Button onClick={() => handleExport("excel")} variant="outline">
-                    <Files className="h-4 w-4 mr-2" /> Export Excel
+                    <Download className="h-4 w-4 mr-2" /> Export Excel
                   </Button>
                   {/* TXT Upload (for reference, must be copied manually) */}
                   <div className="flex flex-col gap-1">
@@ -288,7 +268,7 @@ export default function Database() {
                 </div>
               </TabsContent>
               
-              <TabsContent value="page" className="space-y-4">
+              <TabsContent value="app-pages" className="space-y-4">
                 <div className="flex flex-wrap gap-2 items-center">
                   {/* HTML Upload (for reference, must be copied manually) */}
                   <div className="flex flex-col gap-1">
@@ -310,161 +290,154 @@ export default function Database() {
                   To add a new HTML page file, copy it into <code>/public/datafiles/pages/</code> and add it to <code>files.json</code>
                 </div>
               
+                {/* Combined Pages Table - Shows both file-based and app-generated pages */}
                 <div className="overflow-x-auto rounded border bg-background">
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Page Name</TableHead>
                         <TableHead>Type</TableHead>
-                        <TableHead>Path</TableHead>
+                        <TableHead>Created/Path</TableHead>
+                        <TableHead>Links</TableHead>
                         <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {loading ? (
+                      {loading && pageFiles.length === 0 && pages.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={4} className="text-center">
-                            Reading files...
+                          <TableCell colSpan={5} className="text-center">
+                            Loading pages...
                           </TableCell>
                         </TableRow>
-                      ) : filteredPageFiles.length === 0 ? (
+                      ) : filteredPageFiles.length === 0 && filteredPages.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={4} className="text-center">
-                            No HTML page files found.
+                          <TableCell colSpan={5} className="text-center">
+                            No pages found.
                           </TableCell>
                         </TableRow>
                       ) : (
-                        filteredPageFiles.map(file => {
-                          const rowObj = getRowObj(file.rows);
-                          return (
-                            <TableRow key={file.fileName}>
-                              <TableCell>{getFileId(file.fileName)}</TableCell>
-                              <TableCell>{rowObj.Type || "HTML Page"}</TableCell>
+                        <>
+                          {/* File-based HTML pages */}
+                          {filteredPageFiles.map(file => {
+                            const rowObj = getRowObj(file.rows);
+                            return (
+                              <TableRow key={file.fileName}>
+                                <TableCell>{getFileId(file.fileName)}</TableCell>
+                                <TableCell>HTML File</TableCell>
+                                <TableCell>
+                                  <code className="text-xs">{rowObj.Path}</code>
+                                </TableCell>
+                                <TableCell>
+                                  <span className="text-muted-foreground text-xs">N/A</span>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex gap-2">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => window.open(`${rowObj.Path}`, "_blank")}
+                                      title="View page"
+                                    >
+                                      <Eye className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+
+                          {/* App-generated pages */}
+                          {filteredPages.map(page => (
+                            <TableRow key={page.id}>
+                              <TableCell>{page.title}</TableCell>
                               <TableCell>
-                                <code className="text-xs">{rowObj.Path}</code>
+                                {page.isFileBasedPage ? "File-Based Page" : "App-Generated Page"}
+                              </TableCell>
+                              <TableCell>
+                                {page.isFileBasedPage ? (
+                                  <code className="text-xs">{page.filePath}</code>
+                                ) : (
+                                  format(new Date(page.createdAt), "PPP")
+                                )}
+                              </TableCell>
+                              {/* Column to display generated links for the page */}
+                              <TableCell>
+                                {getPageLinks(page.id).length === 0 ? (
+                                  <span className="text-muted-foreground text-xs">No links</span>
+                                ) : (
+                                  <div className="flex flex-col gap-1">
+                                    {getPageLinks(page.id).map(link => (
+                                      <span
+                                        key={link.id}
+                                        className="flex items-center gap-1 text-xs"
+                                      >
+                                        <LinkIcon className="w-4 h-4" />
+                                        <a
+                                          href={link.fullLink}
+                                          className="text-blue-600 dark:text-blue-400 underline"
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          title="Open link"
+                                        >
+                                          {link.fullLink}
+                                        </a>
+                                        <Button
+                                          variant="secondary"
+                                          size="icon"
+                                          className="p-1"
+                                          onClick={() => {
+                                            navigator.clipboard.writeText(link.fullLink);
+                                            toast({
+                                              title: "Copied!",
+                                              description: "Link copied to clipboard.",
+                                            });
+                                          }}
+                                        >
+                                          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15V5a2 2 0 012-2h10"></path></svg>
+                                        </Button>
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
                               </TableCell>
                               <TableCell>
                                 <div className="flex gap-2">
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    onClick={() => window.open(`${rowObj.Path}`, "_blank")}
-                                    title="View page"
+                                    onClick={() =>
+                                      window.open(`/preview/${page.id}`, "_blank")
+                                    }
+                                    title="View"
                                   >
                                     <Eye className="h-4 w-4" />
                                   </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleDownloadPage(page.id)}
+                                    title="Download"
+                                  >
+                                    <Download className="h-4 w-4" />
+                                  </Button>
+                                  {/* Modern delete dialog */}
+                                  <DeletePageDialog
+                                    onDelete={handleDeletePage(page.id)}
+                                    trigger={
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        title="Delete"
+                                      >
+                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                      </Button>
+                                    }
+                                  />
                                 </div>
                               </TableCell>
                             </TableRow>
-                          );
-                        })
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </TabsContent>
-              
-              <TabsContent value="app-pages" className="space-y-4">
-                {/* ---- Pages + Generated Links Table ---- */}
-                <div className="overflow-x-auto rounded border bg-background">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Title</TableHead>
-                        <TableHead>Created</TableHead>
-                        <TableHead>Links</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {pages.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={4} className="text-center text-sm">
-                            No pages found.
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        pages.map(page => (
-                          <TableRow key={page.id}>
-                            <TableCell>{page.title}</TableCell>
-                            <TableCell>{format(new Date(page.createdAt), "PPP")}</TableCell>
-                            {/* Column to display generated links for the page */}
-                            <TableCell>
-                              {getPageLinks(page.id).length === 0 ? (
-                                <span className="text-muted-foreground text-xs">No links</span>
-                              ) : (
-                                <div className="flex flex-col gap-1">
-                                  {getPageLinks(page.id).map(link => (
-                                    <span
-                                      key={link.id}
-                                      className="flex items-center gap-1 text-xs"
-                                    >
-                                      <LinkIcon className="w-4 h-4" />
-                                      <a
-                                        href={link.fullLink}
-                                        className="text-blue-600 underline"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        title="Open link"
-                                      >
-                                        {link.fullLink}
-                                      </a>
-                                      <Button
-                                        variant="secondary"
-                                        size="icon"
-                                        className="p-1"
-                                        onClick={() => {
-                                          navigator.clipboard.writeText(link.fullLink);
-                                          toast({
-                                            title: "Copied!",
-                                            description: "Link copied to clipboard.",
-                                          });
-                                        }}
-                                      >
-                                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15V5a2 2 0 012-2h10"></path></svg>
-                                      </Button>
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex gap-2">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() =>
-                                    window.open(`/preview/${page.id}`, "_blank")
-                                  }
-                                  title="View"
-                                >
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleDownloadPage(page.id)}
-                                  title="Download"
-                                >
-                                  <Download className="h-4 w-4" />
-                                </Button>
-                                {/* Modern delete dialog */}
-                                <DeletePageDialog
-                                  onDelete={handleDeletePage(page.id)}
-                                  trigger={
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      title="Delete"
-                                    >
-                                      <Trash2 className="h-4 w-4 text-destructive" />
-                                    </Button>
-                                  }
-                                />
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))
+                          ))}
+                        </>
                       )}
                     </TableBody>
                   </Table>
