@@ -40,18 +40,18 @@ const themeStyleOptions = {
 };
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setTheme] = useState<Theme>("light");
-  const [themeStyles, setThemeStyles] = useState(themeStyleOptions.light);
+  const [theme, setTheme] = useState<Theme>("aurora"); // Default to aurora theme
+  const [themeStyles, setThemeStyles] = useState(themeStyleOptions.aurora);
 
   useEffect(() => {
     // Check for saved theme or system preference
     const savedTheme = localStorage.getItem("bookmarket_theme") as Theme | null;
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
     
     if (savedTheme && (savedTheme === "light" || savedTheme === "dark" || savedTheme === "aurora")) {
       setTheme(savedTheme);
-    } else if (prefersDark) {
-      setTheme("dark");
+    } else {
+      // Default to aurora theme
+      setTheme("aurora");
     }
   }, []);
 
