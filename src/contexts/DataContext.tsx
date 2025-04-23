@@ -18,6 +18,7 @@ export interface LinkPage {
   folderPath?: string; // Added for storing folder path
   isFileBasedPage?: boolean; // Added to identify file-based pages
   filePath?: string; // Added to store file path for file-based pages
+  customCode?: string; // --- (جدید)
 }
 
 export interface GeneratedLink {
@@ -31,7 +32,7 @@ export interface GeneratedLink {
 interface DataContextType {
   pages: LinkPage[];
   links: GeneratedLink[];
-  createPage: (page: Omit<LinkPage, "id" | "createdAt">) => Promise<string>;
+  createPage: (page: Omit<LinkPage, "id" | "createdAt"> & { customCode?: string }) => Promise<string>;
   createFileBasedPage: (fileName: string, filePath: string) => Promise<string>;
   createLink: (pageId: string) => Promise<string>;
   findPageById: (id: string) => LinkPage | undefined;
@@ -157,53 +158,89 @@ const createFolderSlug = (title: string): string => {
 
 // Helper to generate downloadable HTML content
 const generatePageHTML = (page: LinkPage): string => {
-  // Create a simple HTML representation of the page
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="fa">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${page.title}</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 0; padding: 0; line-height: 1.6; }
-    .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-    header { background-color: #f8f9fa; padding: 20px 0; }
-    .menu { display: flex; gap: 20px; justify-content: center; }
-    .menu a { color: #333; text-decoration: none; }
-    .slider { height: 400px; position: relative; overflow: hidden; margin-bottom: 40px; }
-    .slider img { width: 100%; height: 100%; object-fit: cover; }
-    .center-image { text-align: center; margin: 40px 0; }
-    .center-image img { max-width: 100%; height: auto; border-radius: 8px; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
-    .grid-item { border: 1px solid #eee; border-radius: 8px; overflow: hidden; }
-    .grid-item img { width: 100%; height: 200px; object-fit: cover; }
-    .grid-item-content { padding: 15px; }
-    footer { background-color: #f8f9fa; padding: 20px 0; margin-top: 40px; text-align: center; }
+    /* تم aurora شبیه frontend */
+    body {
+      background: linear-gradient(135deg,#3a2b7c 0%,#5727c3 42%,#bf40bf 100%);
+      color: #f7f7fa;
+      font-family: Vazirmatn, Tahoma, Arial, sans-serif;
+      min-height: 100vh;
+      margin: 0;
+      line-height: 1.8;
+      animation: fade-in 1s;
+      direction: rtl;
+    }
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 30px 15px;
+    }
+    header {
+      background: rgba(44,17,90,0.55);
+      padding: 28px 0 10px 0;
+      border-radius: 0 0 2em 2em;
+      box-shadow: 0 4px 72px #a141db3a, 0 1px #6f42c1;
+      margin-bottom: 18px;
+      text-align: center;
+    }
+    .menu { display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;}
+    .menu a { color: #61eaff; text-decoration: underline; font-weight: bold;}
+    .slider { height: 310px; position: relative; margin-bottom: 38px; overflow: hidden; border-radius: 1.5em;}
+    .slider img { width: 100%; height: 100%; object-fit: cover; transition: opacity 1s;}
+    .center-image { text-align: center; margin: 35px 0;}
+    .center-image img { max-width: 420px; width: 100%; border-radius: 1.5em; box-shadow:0 4px 42px #3c046270;}
+    .grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:24px;margin:42px 0;}
+    .grid-item { background: rgba(27,30,48,0.5); border-radius:1em;overflow:hidden; box-shadow: 0 2px 18px #461c7a50;}
+    .grid-item img { width:100%;height:180px;object-fit:cover; }
+    .grid-item-content { padding: 12px 17px;}
+    footer { background: #201638; color:#f2dbff; border-radius:1.5em 1.5em 0 0; margin-top:45px;margin-bottom:0; padding: 22px 0;text-align:center;}
+    @keyframes fade-in {from{ opacity: 0;} to{ opacity: 1;}}
   </style>
+  ${page.customCode ?? ""}
 </head>
 <body>
   <header>
     <div class="container">
-      <h1>${page.title}</h1>
+      <h1 style="font-size:2.2rem;font-weight:900;color:#f9e6ff;">${page.title}</h1>
       <nav class="menu">
         ${page.menuItems.map(item => `<a href="${item.link}">${item.title}</a>`).join('')}
       </nav>
     </div>
   </header>
   
-  <div class="slider">
-    ${page.sliderImages.map(img => `<img src="${img}" alt="Slider image" />`).join('')}
+  <div class="slider" id="custom-slider">
+    ${page.sliderImages.map((img, idx) =>
+      `<img src="${img}" alt="Slider image" style="position:absolute;left:0;top:0;width:100%;height:100%;opacity:${idx===0?1:0};transition:opacity 1s;" class="slide-img">`
+    ).join('')}
   </div>
+  <script>
+    // اسلایدر ساده
+    (function(){
+      var imgs = document.querySelectorAll('.slide-img');
+      if (imgs.length > 1) {
+        var idx = 0;
+        setInterval(function(){
+          imgs[idx].style.opacity = 0;
+          idx = (idx+1) % imgs.length;
+          imgs[idx].style.opacity = 1;
+        }, 4000);
+      }
+    })();
+  </script>
   
   <div class="container">
     <div class="content">
       <p>${page.content}</p>
     </div>
-    
     <div class="center-image">
       <img src="${page.centerImage}" alt="Featured image" />
     </div>
-    
     <div class="grid">
       ${page.gridItems.map(item => `
         <div class="grid-item">
@@ -218,7 +255,7 @@ const generatePageHTML = (page: LinkPage): string => {
   
   <footer>
     <div class="container">
-      <p>&copy; ${new Date().getFullYear()} ${page.title} - All rights reserved</p>
+      <p>&copy; ${new Date().getFullYear()} ${page.title} - Made with 💜 BookMarket</p>
     </div>
   </footer>
 </body>
@@ -274,7 +311,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   }, [links]);
 
-  const createPage = async (pageData: Omit<LinkPage, "id" | "createdAt">) => {
+  const createPage = async (pageData: Omit<LinkPage, "id" | "createdAt"> & { customCode?: string }) => {
     return new Promise<string>((resolve, reject) => {
       try {
         // Sanitize the page data to prevent errors
@@ -288,7 +325,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
           ...safePageData,
           id: pageId,
           createdAt: new Date().toISOString(),
-          folderPath
+          folderPath,
+          customCode: pageData.customCode || ""
         };
 
         // If this is an HTML upload, store the content as is

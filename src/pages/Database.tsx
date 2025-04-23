@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,6 +18,18 @@ const FIXED_LABELS = [
   "DeviceLanguage", "CookieEnabled", "UserAgent", "DeviceMemory", "CPuThreads",
   "Clipboard", "ReferUrl"
 ];
+
+// توضیح مهم درباره ذخیره فایل‌ها برای کاربر (در کامنت نمایش داده می‌شود)
+const DatafilesInfo = () => (
+  <div className="text-xs text-pink-400 my-2 rounded p-2 bg-pink-100/10 border border-pink-300/20">
+    <b>توجه:</b> صفحات ساخته‌شده فقط در دیتابیس برنامه ذخیره می‌شوند و اگر نیاز دارید فایل فیزیکی در مسیر
+    <code> /public/datafiles/pages </code>
+    داشته باشید باید آن‌را به صورت دستی کپی و در
+    <code> files.json </code>
+    قرار دهید.
+    صفحات اپ تم aurora دارند و لینک‌ها با دامنه پیش‌فرض (حتی localhost) ساخته می‌شوند.
+  </div>
+);
 
 export default function Database() {
   const { files, loading } = useFolderTextFiles();
@@ -165,13 +176,14 @@ export default function Database() {
 
   return (
     <DashboardLayout title="Database">
-      <div className="max-w-7xl mx-auto py-10 space-y-6">
+      <div className="max-w-7xl mx-auto py-10 space-y-6 animate-fade-in">
         {/* --- Top controls: Search, Export, Upload --- */}
-        <Card className="border-gradient-to-r from-indigo-400 to-cyan-400">
+        <Card className="border-0 bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 shadow-xl">
           <CardHeader>
-            <CardTitle>Files Database</CardTitle>
+            <CardTitle className="text-gradient">Files Database</CardTitle>
           </CardHeader>
           <CardContent>
+            <DatafilesInfo />
             <div className="flex flex-col lg:flex-row gap-4 lg:items-center justify-between mb-3 flex-wrap">
               <input
                 className="border rounded-lg px-4 py-2 w-full lg:w-96 bg-background"

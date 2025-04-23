@@ -16,23 +16,23 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen flex bg-background">
+    <div className="min-h-screen flex bg-background aurora bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900">
       <Sidebar />
 
       <div 
         className={cn(
-          "flex-1 flex flex-col transition-all duration-300",
+          "flex-1 flex flex-col transition-all duration-300 bg-gradient-to-br from-indigo-950 via-purple-950 to-pink-950",
           isOpen ? "ml-64" : "ml-16"
         )}
       >
-        <header className="h-16 border-b flex items-center justify-between px-6">
-          <h1 className="text-xl font-semibold">{title || "Dashboard"}</h1>
+        <header className="h-16 border-b flex items-center justify-between px-6 bg-gradient-to-tl from-indigo-900 via-purple-900 to-pink-900 shadow-md">
+          <h1 className="text-xl font-semibold text-gradient-primary">{title || "Dashboard"}</h1>
           <div className="flex items-center gap-4">
             <ThemeToggle />
           </div>
         </header>
 
-        <main className="flex-1 p-6 overflow-y-auto">
+        <main className="flex-1 p-6 overflow-y-auto animate-fade-in">
           {children}
         </main>
       </div>
